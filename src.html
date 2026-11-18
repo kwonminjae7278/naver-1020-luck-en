@@ -1,0 +1,2399 @@
+<title>Today’s Luck — Prototype</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,800..900&family=Inter:wght@400;500;600;700&family=Urbanist:wght@500&display=swap" />
+<style>
+  @font-face { font-family: "ZEN SERIF"; font-weight: 400; font-display: block; src: url(__font_zen-serif__) format("woff2"); }   /* 운세 화면 제목 · 시안 서체 */
+  /* 단일 다크 테마: 앱 화면 프로토타입 */
+  :root {
+    color-scheme: dark;
+    --mint: rgb(95, 254, 198);
+    --ease: cubic-bezier(.65, 0, .35, 1);        /* ease-in-out */
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
+    --spring: cubic-bezier(.34, 1.45, .5, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #050505; }
+  /* 칸을 창 크기로 고정(minmax 0) → 창이 874px보다 낮아도 줄어든 폰이 가운데에 (칸이 폰 원래 높이만큼 늘어나 위에 붙고 아래가 잘리던 문제) */
+  body { display: grid; place-items: center; grid-template: minmax(0, 1fr) / minmax(0, 1fr); -webkit-font-smoothing: antialiased;
+         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; }
+  .phone {
+    position: relative; width: 402px; height: 874px; overflow: hidden; background: #0e0e0e;
+    border-radius: 48px; box-shadow: 0 0 0 10px #222, 0 30px 80px rgba(0,0,0,.6);
+    user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  html, body { overflow: hidden; }
+  .phone img { max-width: none; }   /* 게시 템플릿의 img{max-width:100%}가 키링 부품 이미지를 0px로 줄이지 않게 */
+  .phone { flex: none; transform-origin: 50% 50%; }
+  @media (max-width: 440px), (max-height: 900px) {
+    .phone { border-radius: 0; box-shadow: none; }
+    .replay { display: none; }
+  }
+  .scaler { position: absolute; left: 0; top: 0; width: 402px; height: 874px; transform-origin: 0 0; }
+  /* 휴대폰: 시안의 가짜 상태바(위 47px)는 잘라 내고(아래 홈 막대 자리 24px 여백은 데스크톱처럼 유지), 실제로 보이는 영역(visualViewport, 노치 안전 영역 제외)에
+     화면 전체가 들어오게 맞춤. 카카오톡·인스타 같은 앱 안 브라우저는 아래 도구 막대가 접히지 않아서, 스크롤로 맞추면 아래가 잘림.
+     → 너비에 꽉 맞추되, 세로가 모자라면 전체를 살짝 줄여 다 보이게 하고 그때는 둥근 카드처럼 보여 줌 (Figma 프로토타입 'Fit' 방식) */
+  html.mob, html.mob body { height: 100%; overflow: hidden; background: #0e0e0e; overscroll-behavior: none; }
+  html.mob body { display: block; position: relative; padding: 0; }
+  html.mob .phone { position: absolute; left: 0; top: 0; height: 827px; border-radius: 0; box-shadow: none; transform-origin: 0 0; background: #0e0e0e;
+                    margin: 0 !important; display: block; transition: border-radius .3s var(--ease); }
+  html.mob.mob-card, html.mob.mob-card body { background: #050505; }
+  html.mob.mob-card .phone { box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 12px 40px rgba(0,0,0,.55); }
+  html.mob .scaler { top: -47px; }
+  html.mob .replay { display: none; }
+  #safeProbe { position: fixed; left: 0; top: 0; width: 0; visibility: hidden; pointer-events: none;
+               padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .layer { position: absolute; inset: 0; }
+  .abs { position: absolute; display: block; }
+  .no-anim, .no-anim * { transition: none !important; }
+
+  /* ── 홈 ───────────────────────────── */
+  #homeScroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain; background: #0e0e0e; }
+  #homeScroll::-webkit-scrollbar { display: none; }
+  .home-content { position: relative; width: 402px; height: 1006px; }   /* 874 + 최대 스크롤 132 */
+  #homeHello, #homeTitle, #ctaCapture { will-change: transform, opacity; }
+  #home { transform-origin: 50% 40%; transform: scale(.94); opacity: 0;
+          transition: transform .7s var(--ease), opacity .7s var(--ease); }
+  .s-fortune #home { opacity: 1; transition-delay: .8s; }   /* 운세 화면 뒤에 미리 깔아 둠 */
+  .s-home #home { transform: none; opacity: 1; transition-delay: 0s; }
+  /* 홈 카드 3종: 누르면 살짝 눌리고 → 민트로 바뀐 뒤 → 다음 화면으로 */
+  .hcard { cursor: pointer; transition: transform .5s var(--spring); }
+  .hcard.pressed { transform: scale(.965); transition: transform .14s var(--ease-out); }
+  .hcard img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hcard .on { opacity: 0; transition: opacity .26s var(--ease); }
+  .hcard.sel .on { opacity: 1; }
+
+  /* ── 화면 이동 (push / back) ──────── */
+  :root { --nav: cubic-bezier(.6, 0, .2, 1); --nav-t: .6s; }
+  .inner { position: absolute; inset: 0; transition: transform var(--nav-t) var(--nav); }
+  .shade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none;
+           transition: opacity var(--nav-t) var(--nav); }
+  .under > .inner { transform: translateX(-28%); }
+  .under > .shade { opacity: .5; }
+  .push { background: #0e0e0e; transform: translateX(100%); visibility: hidden;
+          box-shadow: -16px 0 40px rgba(0,0,0,.45);
+          transition: transform var(--nav-t) var(--nav), visibility 0s linear var(--nav-t); }
+  .push.on { transform: none; visibility: visible; transition: transform var(--nav-t) var(--nav), visibility 0s; }
+  .shop { background: #fff; }
+  /* 상세 화면 요소가 차례로 자리 잡음 */
+  .d-in { opacity: 0; transform: translateY(14px); transition: opacity .3s var(--ease), transform .3s var(--ease); }
+  .d-hero { transform: scale(.94); transform-origin: 50% 45%; }
+  .push.on .d-in { opacity: 1; transform: none; transition: opacity .55s var(--ease), transform .7s var(--ease-out); }
+  .push.on .d-hero { transition-delay: .2s; } .push.on .d-body { transition-delay: .32s; }
+  .push.on .d-icons { transition-delay: .4s; } .push.on .d-btn { transition-delay: .48s; }
+  .hot { position: absolute; cursor: pointer; }
+  /* 공통 하단 내비 (팀원 앱 .bottom-nav 와 같은 값) */
+  .bottom-nav { position: absolute; left: 0; top: 780px; width: 402px; height: 94px; margin: 0; background: rgba(40, 40, 40, .9);
+                -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 30px 30px 0 0;
+                font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  /* 탭 위치: 기운 충전 탭(팀원 앱)과 똑같이 — 칸을 균등 분할하지 않고 탭마다 정해진 중심 위치(14.43% · 37.44% · 61.19% · 84.83%) */
+  .bottom-nav__list { position: relative; height: 94px; padding: 0; margin: 0; list-style: none; }
+  .bottom-nav__list > li { position: absolute; top: 12px; width: 84px; transform: translateX(-50%); }
+  .bottom-nav__list > li:nth-child(1) { left: 14.43%; } .bottom-nav__list > li:nth-child(2) { left: 37.44%; }
+  .bottom-nav__list > li:nth-child(3) { left: 61.19%; } .bottom-nav__list > li:nth-child(4) { left: 84.83%; }
+  .bottom-nav__item { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0; border: 0; background: none;
+                      color: #6e767c; font: inherit; font-size: 13px; font-weight: 400; line-height: 2; letter-spacing: -.065px; cursor: pointer; }
+  .bottom-nav__item.is-active { color: #fff; font-weight: 600; }
+  .bottom-nav__item svg { display: block; }
+  .home-indicator { position: absolute; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 100px; background: #fff; }
+  #freqLayer { z-index: 40; background: #121212; visibility: hidden; }
+  .tab-freq #freqLayer { visibility: visible; }
+  /* 기운 충전(팀원 앱)이 화면을 다 덮는 동안 그 아래 화면들은 그리지 않음 → 휴대폰 그래픽 메모리 절약 (덮인 화면이 그대로 남아 있으면 iOS가 화면을 통째로 지울 수 있음) */
+  .phone.tab-freq .layer:not(#freqLayer), .phone.tab-freq #appNav { visibility: hidden !important; }
+  #freqFrame { position: absolute; inset: 0; width: 402px; height: 874px; border: 0; display: block; background: #121212; transition: opacity .28s ease-out; }
+  /* 처음 온보딩: 팀원 앱이 첫 화면을 다 그린 뒤에 부드럽게 나타남 (그 전엔 같은 바탕색만 → 빈 화면이 깜빡이지 않음) */
+  .phone.onb-wait #freqFrame { opacity: 0; transition: none; }
+  /* ── 친구방 ── */
+  #friends { background: #0e0e0e; visibility: hidden; }
+  .tab-friends #friends { visibility: visible; }
+  #frScroll { position: absolute; left: 0; top: 104px; width: 402px; height: 770px; overflow-y: auto; overflow-x: hidden;
+              overscroll-behavior: contain; scrollbar-width: none; cursor: grab; -webkit-overflow-scrolling: touch; }
+  #frScroll::-webkit-scrollbar { display: none; }
+  #frScroll.dragging { cursor: grabbing; }
+  .fr-content { position: relative; width: 402px; height: 819px; }
+  /* 작은 글자는 HTML로 다시 그림 (배경색으로 이미지 글자를 덮음) */
+  .fr-text { position: absolute; background: #0e0e0e; color: #ececec; font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+             font-size: 14.5px; font-weight: 500; letter-spacing: -.35px; line-height: 24px; pointer-events: none; }
+  .fr-head-t { position: absolute; left: 140px; top: 64px; width: 122px; height: 34px; background: #0e0e0e; color: #fff; text-align: center;
+               font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -.4px; line-height: 34px; pointer-events: none; }
+  .fr-content > img { display: block; pointer-events: none; }
+  /* Lucky Moments: 가로 스크롤 (시안 세 장을 이어 붙인 띠, 최대 480px) */
+  #frRow { position: absolute; left: 0; top: 545px; width: 402px; height: 274px; overflow-x: auto; overflow-y: hidden;
+           scrollbar-width: none; overscroll-behavior-x: contain; background: #0e0e0e; }
+  #frRow::-webkit-scrollbar { display: none; }
+  #frRow img { display: block; width: 882px; height: 274px; pointer-events: none; }
+  .fr-row-in { position: relative; width: 882px; height: 274px; }
+  .moment-hot { position: absolute; top: 0; width: 160px; height: 274px; border: 0; padding: 0; background: transparent; cursor: pointer;
+                border-radius: 28px; transition: transform .4s var(--spring); }
+  .moment-hot:active { transform: scale(.97); transition: transform .12s; }
+  #luckyTalk { border-radius: 40px; transition: transform .4s var(--spring); }
+  /* 운세 수다방 카드: 가운데 1장 + 양옆 2장씩. 옆 카드를 누르거나 밀면 돌아감 (1109 시안) */
+  #rooms { position: absolute; left: 0; top: 122px; width: 402px; height: 318px; touch-action: pan-y; }
+  .room { position: absolute; top: 0; left: 50%; width: 197px; height: 318px; border-radius: 60px; overflow: hidden; padding: 0; border: 0;
+    background: #2a2a2a; color: #fff; text-align: center; transform: translateX(-50%); cursor: pointer; -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+    transition: left .5s cubic-bezier(.22,1,.36,1), top .5s cubic-bezier(.22,1,.36,1), width .5s cubic-bezier(.22,1,.36,1), height .5s cubic-bezier(.22,1,.36,1), opacity .45s var(--ease), box-shadow .45s var(--ease); }
+  .room > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+  .room .rm-grad { position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,0) 29.4%, #000 100%); opacity: 0; transition: opacity .45s var(--ease); }
+  .room .rm-dim { position: absolute; inset: 0; background: rgba(0,0,0,.2); transition: opacity .45s var(--ease), background .45s var(--ease); }
+  .room .rm-badge { position: absolute; top: 17.5px; right: 25.5px; width: 21px; height: 21px; border-radius: 50%; background: #FF39C7; color: #000;
+    font-size: 14px; font-weight: 700; line-height: 21px; transition: opacity .3s var(--ease); }
+  .room .rm-info { position: absolute; left: 0; right: 0; top: 218px; display: flex; flex-direction: column; align-items: center; transition: top .5s cubic-bezier(.22,1,.36,1); }
+  .room .rm-mem { font-size: 14px; font-weight: 500; line-height: 1.45; letter-spacing: -.56px; color: rgba(255,255,255,.7); transition: opacity .3s var(--ease); }
+  .room .rm-title { margin-top: 9px; font-size: 22px; font-weight: 600; line-height: 1.3; letter-spacing: -.88px; white-space: nowrap; color: rgba(255,255,255,.8);
+    display: inline-flex; align-items: center; gap: 6.7px; transition: opacity .3s var(--ease), color .3s var(--ease); }
+  .room[data-pos="0"] { z-index: 5; box-shadow: 3.5px 3.5px 48px rgba(55,55,55,.25); }
+  .room[data-pos="0"] .rm-grad { opacity: 1; } .room[data-pos="0"] .rm-dim { opacity: 0; } .room[data-pos="0"] .rm-title { color: #fff; }
+  .room[data-pos="-1"], .room[data-pos="1"] { z-index: 4; top: 28px; width: 162.6px; height: 262.5px; box-shadow: 3.5px 3.5px 48px rgba(187,187,187,.25); }
+  .room[data-pos="-1"] { left: calc(50% - 72.5px); } .room[data-pos="1"] { left: calc(50% + 73.3px); }
+  .room[data-pos="-2"], .room[data-pos="2"] { z-index: 3; top: 57px; width: 126px; height: 205px; opacity: .89; }
+  .room[data-pos="-2"] { left: calc(50% - 118px); } .room[data-pos="2"] { left: calc(50% + 118px); }
+  .room[data-pos="-2"] .rm-dim, .room[data-pos="2"] .rm-dim { background: rgba(0,0,0,.4); }
+  .room:not([data-pos="0"]) .rm-badge, .room:not([data-pos="0"]) .rm-mem, .room[data-pos="-2"] .rm-title, .room[data-pos="2"] .rm-title { opacity: 0; }
+  .room:not([data-pos="0"]) .rm-info { top: 176px; }
+  .room.baked .rm-grad { display: none; }
+  .room.wrap { z-index: 1 !important; animation: rmWrap .5s cubic-bezier(.65,0,.35,1); }
+  @keyframes rmWrap { 0%, 100% { opacity: .89; } 50% { opacity: 0; } }
+  .room[data-pos="0"]:active { transform: translateX(-50%) scale(.98); transition: transform .15s var(--ease); }
+
+  /* ── 행운 공구방 채팅 ── */
+  #scr-chat { background: #fff; }
+  /* 채팅은 위아래로 스크롤 (대화 A → 대화 B → 새 메시지) */
+  #chMsgs { position: absolute; left: 0; top: 187px; width: 402px; height: 581px; overflow-y: auto; overflow-x: hidden;
+            scrollbar-width: none; overscroll-behavior: contain; padding-bottom: 28px; box-sizing: border-box; }
+  #chMsgs::-webkit-scrollbar { display: none; }
+  .ch-spacer { height: 0; transition: height .55s var(--ease); }
+  .ranked .ch-spacer { height: 111px; }
+  .ch-thread { position: relative; width: 402px; height: 1025px; transition: height .4s var(--ease); }
+  /* ── 채팅: 텍스트·말풍선은 HTML로 (어떤 해상도에서도 선명) ── */
+  #scr-chat { font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; }
+  .ch-thread .bub, .ch-thread .nm-name, .ch-thread .av, .ch-thread .placecard, .ch-thread .mixcard { position: absolute; }
+  .bub { height: 40px; padding: 0 14px; display: flex; align-items: center; white-space: nowrap; border-radius: 20px;
+         font-size: 15px; font-weight: 500; letter-spacing: -.35px; line-height: 1; }
+  .bub.two { height: 67px; padding: 0 14px; border-radius: 20px; line-height: 23.5px; display: block; padding-top: 10px; }
+  .bub.you { left: 68px; background: #121212; color: #fff; }
+  .bub.me { right: 20px; background: #FFA1F9; color: #111; }
+  .nm-name { left: 69px; font-size: 12.5px; font-weight: 500; color: #3a3a3a; letter-spacing: -.1px; line-height: 15px; }
+  .av { left: 19px; width: 42px; height: 42px; pointer-events: none; }
+  .mixcard { left: 68px; width: 269px; height: 99px; border-radius: 22px; background: #121212; cursor: pointer;
+             transition: transform .4s var(--spring); }
+  .mixcard:active { transform: scale(.97); transition: transform .12s; }
+  .mixcard img { position: absolute; left: 14px; top: 10px; width: 112px; height: 37px; }
+  .mixcard span { position: absolute; left: 20px; top: 56px; color: #fff; font-size: 13.5px; font-weight: 500; letter-spacing: -.3px; }
+  .mix-go { position: absolute; right: 12px; bottom: 12px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: grid; place-items: center; }
+  .placecard { right: 20px; width: 268px; height: 138px; border-radius: 22px; background: #5EFFC7; }
+  .placecard img { position: absolute; left: 7px; top: 7px; width: 124px; height: 124px; border-radius: 16px; object-fit: cover; }
+  .pc-tag { position: absolute; left: 144px; top: 13px; font-family: "Archivo", "Arial Narrow", sans-serif; font-stretch: 70%;
+            font-weight: 800; font-size: 15px; letter-spacing: -.4px; color: #3f8f73; }
+  .placecard strong { position: absolute; left: 144px; top: 38px; font-size: 18px; font-weight: 700; color: #111; letter-spacing: -.5px; }
+  .pc-btn { position: absolute; left: 140px; top: 95px; width: 117px; height: 35px; border-radius: 18px; background: #121212; color: #fff;
+            display: grid; place-items: center; font-size: 14px; font-weight: 600; letter-spacing: -.3px; }
+  .ch-thread > .nm { position: absolute; inset: 0 auto auto 0; width: 402px; opacity: 0; transform: translateY(14px) scale(.96);
+                     transition: opacity .35s var(--ease), transform .5s var(--spring); pointer-events: none; }
+  .ch-thread > .nm.me { transform-origin: 100% 0; } .ch-thread > .nm.you { transform-origin: 0 0; }
+  .ch-thread > .nm.show { opacity: 1; transform: none; }
+  /* 상단: 상태바 · 제목 · 칩 · 순위 바 */
+  #chHead .ch-status { position: absolute; left: 0; top: 0; width: 402px; height: 54px; display: flex; align-items: center;
+                       justify-content: space-between; padding: 6px 30px 0 46px; font-size: 17px; font-weight: 600; color: #111; }
+  .ch-status .icons { display: flex; gap: 6px; align-items: center; }
+  .ch-back { position: absolute; left: 21px; top: 67px; }
+  .ch-title { position: absolute; left: 0; top: 64px; width: 402px; text-align: center; font-size: 20px; font-weight: 600; letter-spacing: -.6px; color: #111; line-height: 32px; }
+  .ch-title svg { vertical-align: -2px; } .ch-title em { font-style: normal; color: #b8b8bd; font-weight: 500; margin-left: 2px; }
+  .ch-chips { position: absolute; left: 20px; top: 130px; display: flex; gap: 9px; white-space: nowrap; }
+  .ch-chips span { height: 42px; padding: 0 23px; border-radius: 21px; background: #fff; color: #505055; font-size: 15px; font-weight: 500;
+                   letter-spacing: -.4px; display: flex; align-items: center; transition: background .3s var(--ease), color .3s var(--ease); }
+  .ranked .ch-chips .chip-rank { background: #FE39C7; color: #fff; }
+  .rk-row { position: absolute; left: 0; top: 198px; display: flex; }
+  .rk { width: 80px; padding-left: 27px; position: relative; }
+  .rk:first-child { margin-left: 0; }
+  .rk img { width: 62px; height: 62px; display: block; }
+  .rk b { display: block; width: 62px; text-align: center; margin-top: 6px; font-size: 13px; font-weight: 600; color: #111; letter-spacing: -.2px; }
+  /* 입력창 */
+  #chInput { position: absolute; left: 0; top: 760px; width: 402px; height: 114px;
+             background: linear-gradient(rgba(251,251,251,0), #F7F7F9 30%, #EFF0F4 64%); }
+  .ci-plus { position: absolute; left: 24px; top: 20px; width: 44px; height: 44px; border-radius: 50%; background: #fff; display: grid; place-items: center; }
+  .ci-field { position: absolute; left: 76px; top: 18px; width: 302px; height: 48px; border-radius: 24px; background: #fff;
+              padding-left: 17px; display: flex; align-items: center; font-size: 15px; color: #b5b5ba; letter-spacing: -.3px; }
+  .ci-send { position: absolute; right: 7px; top: 6px; width: 36px; height: 36px; border-radius: 50%; background: #111; display: grid; place-items: center; }
+  .ci-bar { position: absolute; left: 134px; bottom: 9px; width: 134px; height: 5px; border-radius: 3px; background: #111; }
+  
+  #chFade { position: absolute; left: 0; top: 728px; width: 402px; height: 40px; pointer-events: none;
+            background: linear-gradient(rgba(255,255,255,0), #fff); }
+  #chPanel { position: absolute; left: 0; top: 0; width: 402px; height: 186px; overflow: hidden; background: rgb(239,240,244);
+             border-radius: 0 0 26px 26px; transition: height .55s var(--ease); }
+  .ranked #chPanel { height: 300px; }
+  #chHead { position: absolute; left: 0; top: 0; width: 402px; height: 178px; pointer-events: none; }
+  #chChip { left: 152px; top: 124px; width: 136px; height: 52px; border-radius: 26px; }
+  #chMixChip { border-radius: 26px 0 0 26px; }
+  #chChip:active { background: rgba(0,0,0,.06); }
+
+  /* 딤 공통: 실제 채팅 위에 흐림 + 어두운 막 (시안 값에서 역산) */
+  .dim { position: absolute; inset: 0; z-index: 20; opacity: 0; visibility: hidden;
+         transition: opacity .35s var(--ease), visibility 0s linear .35s; }
+  #rkDim, #mxDim { background: #2b2b2b; }
+  .dimmed #rkDim, .mixing #mxDim { opacity: 1; visibility: visible; transition: opacity .35s var(--ease), visibility 0s; }
+  .dim .pop { opacity: 0; transform: translateY(12px); transition: opacity .2s var(--ease), transform .2s var(--ease); }
+  .dimmed #rkDim .pop, .mixing #mxDim .pop { opacity: 1; transform: none; transition: opacity .5s var(--ease), transform .7s var(--ease-out); }
+
+  /* 딤_0: 제목만 크게 등장 → 1.3초 뒤 위로 올라가며 작아지고, 1등 화면(딤_1)이 드러남 */
+  #rkTitle0 { opacity: 0; transform: scale(.9); transform-origin: 160.5px 68px; transition: opacity .2s, transform .2s; }
+  .dimmed #rkTitle0 { opacity: 1; transform: none; transition: opacity .55s var(--ease) .15s, transform .8s var(--ease-out) .15s; }
+  .dimmed.rk-reveal #rkTitle0 { opacity: 0; transform: translateY(-192px) scale(.77);
+       transition: transform .85s cubic-bezier(.65,0,.35,1), opacity .35s var(--ease) .9s; }
+  #rkBg1 { opacity: 0; transition: opacity .2s; }
+  .dimmed.rk-reveal #rkBg1 { opacity: 1; transition: opacity .55s var(--ease) .82s; }
+  #rkDim #rkOk, #rkDim #rkGift { pointer-events: none; }
+  .rk-reveal #rkDim #rkOk, .rk-reveal #rkDim #rkGift { pointer-events: auto; }
+  /* 순위 딤 이모지: 위에서 떨어지는 잎처럼 좌우로 살랑이며 내려와 제자리에 앉음 */
+  #rkDim .drop { opacity: 0; transform: translate3d(0, var(--y), 0) rotate(var(--r)); will-change: transform, opacity;
+                 transition: opacity .2s, transform .2s; }
+  .dimmed #rkDim .drop { opacity: 1; transform: none;
+                 transition: opacity .5s var(--ease) var(--dl), transform 1.5s cubic-bezier(.45, 0, .2, 1) var(--dl); }
+  /* 겹쳐보기 카드: 처음엔 가운데에 겹쳐 있다가(딤1) 자동으로 펼쳐짐(딤2) */
+  #mxDim .mxc { opacity: 0; transform: translate(var(--tx), calc(var(--ty) + 60px)) rotate(var(--r)) scale(var(--s));
+                transition: opacity .25s, transform .25s; }
+  .mixing #mxDim .mxc { opacity: 1; transform: translate(var(--tx), var(--ty)) rotate(var(--r)) scale(var(--s));
+                transition: opacity .45s var(--ease) calc(.25s + var(--d)), transform .8s var(--ease-out) calc(.25s + var(--d)); }
+  .mixing.spread #mxDim .mxc { transform: none; transition: transform .62s cubic-bezier(.3, 1.4, .55, 1) var(--d); }
+  #mxDim .mxc { cursor: pointer; }
+  #mxPicnic { z-index: 3; } #mxShirt, #mxPlaylist { z-index: 1; }
+  .mixing.spread #mxPicnic:active { transform: scale(.97); transition: transform .12s; }
+  .mixing.spread #mxDim .mx-intro { opacity: 0; transform: translateY(-10px) scale(.96); transition: opacity .22s var(--ease), transform .3s var(--ease); }
+  #mxDim .mx-after { opacity: 0; transform: translateY(10px); transition: opacity .2s, transform .2s; }
+  .mixing.spread #mxDim .mx-after { opacity: 1; transform: none; transition: opacity .4s var(--ease) .35s, transform .5s var(--ease-out) .35s; }
+  .fr-pad { height: 94px; }   /* 내비 높이만큼: 최대 스크롤 = 178px (시안 두 장의 차이) */
+  /* 모달(아래에서 올라옴)·페이드 화면 */
+  .push.modal { transform: translateY(100%); box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
+  .push.modal.on { transform: none; }
+  .under-m > .inner { transform: scale(.94); border-radius: 28px; overflow: hidden; }
+  .under-m > .shade { opacity: .55; }
+  .push.fade { transform: none; opacity: 0; transition: opacity .7s var(--ease), visibility 0s linear .7s; }
+  .push.fade.on { opacity: 1; transition: opacity .7s var(--ease), visibility 0s; }
+  .c-in { opacity: 0; transform: translateY(12px); transition: opacity .4s var(--ease), transform .4s var(--ease); }
+  .push.on .c-in { opacity: 1; transform: none; transition: opacity .6s var(--ease), transform .8s var(--ease-out); }
+
+  /* ── 카메라 ─────────────────────── */
+  #vf { left: 18px; top: 203px; width: 366px; height: 448px; overflow: hidden;
+        -webkit-mask: url(__img_cam_mask__) 0 0 / 100% 100%; mask: url(__img_cam_mask__) 0 0 / 100% 100%; }
+  #vfPhoto { position: absolute; inset: 0; width: 100%; height: 100%; transform-origin: 50% 50%;
+             animation: handheld 7s var(--ease) infinite alternate; }
+  @keyframes handheld {   /* 들고 있는 카메라의 미세한 흔들림 */
+    0%   { transform: scale(1.035) translate(-2px, 1px) rotate(-.15deg); }
+    35%  { transform: scale(1.04) translate(2.5px, -1.5px) rotate(.1deg); }
+    70%  { transform: scale(1.032) translate(-1px, 2px) rotate(.2deg); }
+    100% { transform: scale(1.038) translate(1.5px, -1px) rotate(-.05deg); }
+  }
+  .shot #vfPhoto { animation-play-state: paused; }
+  #vfFlash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  /* 촬영: 뷰파인더만 짧고 부드럽게 하얘졌다가 돌아옴 + 화면이 멈춤 */
+  .flash #vfFlash { animation: flash .42s ease-out; }
+  @keyframes flash { 0% { opacity: 0; } 14% { opacity: .78; } 100% { opacity: 0; } }
+  #shutter.hint i { animation: hint .5s var(--ease) 2; }
+  @keyframes hint { 50% { transform: scale(.88); } }
+  #shutter { left: 166px; top: 681px; width: 70px; height: 70px; border-radius: 50%; background: #000; cursor: pointer; }
+  #shutter i { position: absolute; left: 4px; top: 4px; width: 62px; height: 62px; border-radius: 50%; background: #fff;
+               transition: transform .45s var(--spring); }
+  #shutter.pressed i { transform: scale(.84); transition: transform .1s var(--ease-out); }
+  #thumb { left: 51px; top: 686px; width: 60px; height: 60px; border-radius: 22px; overflow: hidden; }
+  #thumb img { width: 100%; height: 100%; object-fit: cover; }
+  #thumb.got { animation: thumbIn .5s var(--spring); }
+  @keyframes thumbIn { 0% { transform: scale(.8); } 100% { transform: scale(1); } }
+  #fly { left: 18px; top: 203px; width: 366px; height: 448px; border-radius: 120px; overflow: hidden; z-index: 60;
+         visibility: hidden; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  #fly img { width: 100%; height: 100%; object-fit: cover; }
+  #fly.go { visibility: visible; left: 51px; top: 686px; width: 60px; height: 60px; border-radius: 22px;
+            transition: left .6s var(--ease), top .6s var(--ease), width .6s var(--ease), height .6s var(--ease), border-radius .6s var(--ease); }
+
+
+  .tile.c-in { transform: translateY(18px) scale(.96); }
+
+  /* ── 모아보기: 곡면(원통 안쪽) 위에 펼쳐진 사진 띠 ── */
+  #pano { position: absolute; left: 0; top: 228px; width: 402px; height: 540px; perspective: 340px;
+          perspective-origin: 50% 46%; cursor: grab; touch-action: pan-y; overflow: hidden; }
+  #pano.dragging { cursor: grabbing; }
+  #panoRing { position: absolute; left: 50%; top: 46%; transform-style: preserve-3d; }
+  .pcard { position: absolute; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 32%; overflow: hidden;
+           background: #222; backface-visibility: hidden; will-change: transform, opacity; }
+  .pcard img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+
+  /* ── 저녁: 이전 Spin Shutter·키링 프로토타입 (이 화면 안에만 적용) ── */
+  #scr-evening { background: #121212; color: #fff; overflow: hidden; }
+  #scr-evening * { pointer-events: none; }
+  .ev-status { position: absolute; top: 0; left: 0; right: 0; height: 54px; z-index: 50; display: flex; align-items: center;
+    justify-content: space-between; padding: 6px 30px 0 46px; font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
+  .ev-status .icons { display: flex; gap: 6px; align-items: center; }
+  .ev-title { position: absolute; top: 112px; left: 20px; z-index: 40; font-size: 28px; line-height: 1.36; font-weight: 600; letter-spacing: -.6px; }
+  .ev-title span { display: block; opacity: 0; will-change: transform, opacity, filter; }
+  /* 궤도 카드: 매 프레임 바뀌는 건 transform·opacity뿐 (GPU 합성만) → 뒤쪽 카드가 뚝뚝 끊기지 않음.
+     흐림은 미리 흐리게 만든 사본(.b)을 겹쳐 두고 그 투명도만 바꿈 (filter 값을 매 프레임 바꾸면 매번 다시 그려서 끊김) */
+  #homeVeil { position: absolute; inset: 0; z-index: 900; background: #0e0e0e; opacity: 0; pointer-events: none; transition: opacity .55s var(--ease); }
+  #homeVeil.on { opacity: 1; pointer-events: auto; transition: opacity .38s var(--ease); }
+  .ev-card { position: absolute; left: 0; top: 0; width: 148px; height: 148px; margin: -74px 0 0 -74px;
+    will-change: transform, opacity; backface-visibility: hidden; contain: layout style; }
+  .ev-card > i { position: absolute; inset: 0; display: block; border-radius: 30%; overflow: hidden; background: #2a2a2a; }
+  .ev-card .s { box-shadow: 0 10px 30px rgba(0,0,0,.35); will-change: opacity; }
+  .ev-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ev-card .b { opacity: 0; will-change: opacity; background: transparent; overflow: visible; }
+  .ev-card .b img { filter: blur(5px); border-radius: 30%; transform: scale(1.04); }
+  .ev-card .g { opacity: 0; will-change: opacity; background: #fff; }
+  .ev-keyring { position: absolute; left: 36px; top: 243px; width: 330px; height: 495px; z-index: 300; opacity: 0; will-change: transform, opacity; }
+  .ev-part { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .ev-part img { position: absolute; display: block; }
+  .ev-sheen { position: absolute; display: block; -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+    background: linear-gradient(112deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.75) 50%, rgba(255,255,255,0) 58%);
+    background-size: 320% 100%; background-repeat: no-repeat; background-position: 130% 0; mix-blend-mode: soft-light; opacity: .9; }
+  .ev-spark { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; opacity: 0;
+    background: radial-gradient(circle, #fff 0 8%, rgba(255,255,255,.55) 14%, rgba(255,255,255,0) 40%),
+      linear-gradient(90deg, rgba(255,255,255,0) 0, #fff 50%, rgba(255,255,255,0) 100%) center / 100% 1.5px no-repeat,
+      linear-gradient(0deg, rgba(255,255,255,0) 0, #fff 50%, rgba(255,255,255,0) 100%) center / 1.5px 100% no-repeat;
+    mix-blend-mode: screen; }
+  .ev-twinkle .ev-spark { animation: twinkle 2.6s ease-in-out infinite; }
+  .ev-btns { position: absolute; left: 20px; top: 785px; width: 362px; display: flex; gap: 10px; z-index: 60; opacity: 0;
+             transform: translateY(12px); transition: opacity .3s var(--ease), transform .3s var(--ease); }
+  .ev-btns.show { opacity: 1; transform: none; transition: opacity .6s var(--ease), transform .8s var(--ease-out); }
+  #scr-evening .ev-btns.show, #scr-evening .ev-btns.show * { pointer-events: auto; }
+  .ev-btn { flex: 1; height: 55px; border: 0; border-radius: 28px; background: #f4f2f5; color: #111; cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; font-size: 17px; font-weight: 600; letter-spacing: -.4px;
+            transition: transform .4s var(--spring); }
+  .ev-btn.ghost { background: #363636; color: #adadad; }
+  .ev-btn:active { transform: scale(.96); transition: transform .12s; }
+  .ev-home { position: absolute; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: #fff; opacity: .55; z-index: 50; }
+
+  /* ── 참 ─────────────────────────── */
+  #charmStage { left: 0; top: 0; width: 402px; height: 874px; perspective: 700px; pointer-events: none; }
+  #charm { position: absolute; left: 100px; top: 300px; width: 212px; height: 300px; opacity: 0;
+           transform-origin: 170px 28px; will-change: transform, opacity, filter; }
+  #charm img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #charm .sheen { position: absolute; inset: 0;
+    -webkit-mask: url(__img_charm__) 0 0 / 100% 100%; mask: url(__img_charm__) 0 0 / 100% 100%;
+    background: linear-gradient(115deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.85) 50%, rgba(255,255,255,0) 60%) no-repeat;
+    background-size: 300% 100%; background-position: 130% 0; mix-blend-mode: soft-light; }
+  #charm .spark { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; opacity: 0;
+    background:
+      radial-gradient(circle, #fff 0 8%, rgba(255,255,255,.55) 14%, rgba(255,255,255,0) 40%),
+      linear-gradient(90deg, rgba(255,255,255,0), #fff 50%, rgba(255,255,255,0)) center / 100% 1.5px no-repeat,
+      linear-gradient(0deg, rgba(255,255,255,0), #fff 50%, rgba(255,255,255,0)) center / 1.5px 100% no-repeat;
+    mix-blend-mode: screen; }
+  #charm.twinkle .spark { animation: twinkle 2.4s ease-in-out infinite; }
+  @keyframes twinkle { 0%, 100% { opacity: .2; transform: scale(.5) rotate(0); } 50% { opacity: 1; transform: scale(1.15) rotate(20deg); } }
+  .press { transition: transform .4s var(--spring); }
+  .press.pressed { transform: scale(.97); transition: transform .12s var(--ease-out); }
+
+  /* ── 오늘의운세_딤 → 딤2 ───────────── */
+  #dim { transition: opacity .45s var(--ease); }
+  /* 민트 배경이 화면을 덮은 뒤 딤 화면은 치워 둠 */
+  .s-fortune #dim { opacity: 0; pointer-events: none; transition: opacity 0s linear .8s, visibility 0s linear .8s; visibility: hidden; }
+  /* 딤 화면이 사라진 뒤에는 그리지도, 빛 애니메이션을 돌리지도 않음 (전체 화면 고해상도 이미지 2장 → 메모리 절약) */
+  .s-fortune #dimLive i, .s-fortune #dimUni { animation: none !important; }
+  /* X로 닫을 때: 운세 화면은 건너뛰고(움직임 없이 숨김) 딤만 부드럽게 사라지며 홈이 드러남 */
+  .x-close #fortune, .x-close #fortune * { visibility: hidden !important; transition: none !important; }
+  .x-close #dim { transition: opacity .45s var(--ease), visibility 0s linear .45s !important; }
+  .x-close #home { transition: opacity .45s var(--ease), transform .6s var(--ease) !important; }
+  #modal { left: 58px; top: 225px; width: 298px; height: 355px; overflow: hidden;
+           -webkit-mask: url(__img_modal_mask__) 0 0 / 100% 100%; mask: url(__img_modal_mask__) 0 0 / 100% 100%;
+           transform: scale(.985); transition: transform 1.8s var(--ease); }
+  #modal img { position: absolute; inset: 0; width: 100%; height: 100%; transform: scale(1.08);
+               transition: transform 1.9s var(--ease), opacity 1.9s var(--ease); }
+  #modal img.sharp { opacity: 0; }
+  .s-clear #modal { transform: none; }
+  .s-clear #modal img { transform: none; }
+  .s-clear #modal img.sharp { opacity: 1; }
+  .s-fortune #modal, .s-home #modal { visibility: hidden; }
+
+  .sticker {
+    position: absolute; left: 58px; top: 340px; width: 298px; text-align: center; z-index: 2;
+    font-family: "Archivo", "Arial Narrow", Impact, sans-serif; font-stretch: 62%; font-weight: 900;
+    font-size: 47px; line-height: .98; letter-spacing: -1.6px; color: #46fdd2;
+    -webkit-text-stroke: 9px #000; paint-order: stroke fill;
+    filter: drop-shadow(0 2px 0 #2a0008);
+    transition: opacity .7s var(--ease), transform .9s var(--ease), filter .7s var(--ease);
+  }
+  .sticker span { display: inline-block; }
+  #dim2 { opacity: 0; transition: opacity 1.9s var(--ease); }
+  .s-clear #dim2 { opacity: 1; }
+  .s-clear .sticker { opacity: 0; transform: scale(1.08); filter: blur(8px); transition-delay: .25s; }
+
+  .reveal { opacity: 0; transform: translateY(8px); pointer-events: none;
+            transition: opacity .45s var(--ease), transform .55s var(--ease-out); }
+  .s-clear .reveal { opacity: 1; transform: none; pointer-events: auto; transition-delay: 1.45s; }
+  .s-clear #dimBtn.reveal { transition-delay: 1.6s; }
+  .s-fortune .reveal, .s-home .reveal { opacity: 0 !important; transition-delay: 0s !important; pointer-events: none; }
+  #dimBtn, #dimX { cursor: pointer; }
+  #dimBtn:active { transform: scale(.95); transition: transform .12s; }
+
+  /* ── 오늘의운세_화면 ───────────────── */
+  #fortune { pointer-events: none; transition: transform .65s var(--ease); }
+  .s-fortune #fortune { pointer-events: auto; cursor: pointer; }
+  .s-home #fortune { transform: translateY(100%); visibility: hidden; transition: transform .65s var(--ease), visibility 0s linear .65s; }
+  #fBg { position: absolute; inset: 0; background: var(--mint);
+         clip-path: circle(0px at 206px 410px); transition: clip-path .75s var(--ease); }
+  .s-fortune #fBg, .s-home #fBg { clip-path: circle(1000px at 206px 410px); }
+  /* 공유 요소: 모달 카드가 운세 카드로 */
+  #morph { left: 60px; top: 228px; width: 293px; height: 348px; visibility: hidden;
+           transition: left .75s var(--ease), top .75s var(--ease), width .75s var(--ease), height .75s var(--ease); }
+  #morph img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #morphTo { opacity: 0; transition: opacity .4s var(--ease) .22s; }
+  .s-fortune #morph, .s-home #morph { visibility: visible; left: 34px; top: 206px; width: 334px; height: 345px; }
+  .s-fortune #morphTo, .s-home #morphTo { opacity: 1; }
+  /* 전환이 끝나면 원래(딤) 카드는 숨김 → 비율이 달라 아래로 삐져나오던 기둥이 보이지 않음 */
+  #morph img:first-child { transition: opacity .25s var(--ease) .55s; }
+  .s-fortune #morph img:first-child, .s-home #morph img:first-child { opacity: 0; }
+  .f-in { opacity: 0; transform: translateY(10px); transition: opacity .5s var(--ease), transform .6s var(--ease-out); }
+  .s-fortune .f-in, .s-home .f-in { opacity: 1; transform: none; }
+  #fSticker { transform: translateY(-16px) rotate(-4deg) scale(.9); transform-origin: 50% 80%;
+              transition: opacity .35s var(--ease), transform .6s var(--spring); }
+  .s-fortune #fSticker, .s-home #fSticker { transform: none; }
+
+
+  /* ═════ 시나리오 1 (1107 디자인) ═════ */
+  /* 홈 캐러셀 */
+  #home { isolation: isolate; }   /* 캐러셀 카드가 다른 화면(친구방 등) 위로 올라오지 않게 */
+  #carousel { position: absolute; left: 0; top: 400px; width: 402px; height: 375px; touch-action: pan-y; }
+  .ccard { position: absolute; left: 67px; top: 23px; width: 268px; height: 267px; border-radius: 30%; cursor: pointer;
+           transform-origin: 50% 50%; transition: transform .55s cubic-bezier(.65,0,.35,1), box-shadow .55s var(--ease); will-change: transform;
+           font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; }
+  .ccard[data-slot="0"] { z-index: 3; box-shadow: 0 0 40px rgba(170, 190, 255, .22); }
+  .ccard[data-slot="-1"], .ccard[data-slot="1"] { z-index: 1; }
+  .ccard[data-slot="-1"] { transform: translate(-147px, 53.5px) scale(.8); }
+  .ccard[data-slot="1"] { transform: translate(147px, 53.5px) scale(.8); }
+  /* 1109: 카드 모서리 = 스퀴클(초타원 n≈5). 배경은 시안의 Lucky Item 카드를 그대로 쓰고, Place·Music은 색만 돌림 */
+  .cc-bg, .cc-gray { position: absolute; inset: 0; -webkit-mask: url(__img_n_cc_mask__) 0 0 / 100% 100%; mask: url(__img_n_cc_mask__) 0 0 / 100% 100%; }
+  .cc-bg { background: url(__img_n_cc_item__) 0 0 / 100% 100% no-repeat; }
+  .cc-place { filter: hue-rotate(-62deg) saturate(.92) brightness(1.04); }
+  .cc-music { filter: hue-rotate(78deg) saturate(1.05); }
+  .cc-gray { background: #686868; opacity: 0; transition: opacity .45s var(--ease); }
+  .ccard:not([data-slot="0"]) .cc-gray { opacity: 1; }
+  .cc-t { position: absolute; left: 31px; top: 32px; height: 37.5px; width: auto; }
+  .cc-s { position: absolute; left: 28px; top: 74px; margin: 0; font-size: 18px; font-weight: 600; -webkit-text-stroke: .25px currentColor; line-height: 1.38; letter-spacing: -.45px; color: #121a1b; white-space: nowrap; }
+  .cc-go { position: absolute; left: 194px; top: 192px; width: 51px; height: 51px; border-radius: 50%; background: #fff; display: grid; place-items: center;
+           transition: opacity .35s var(--ease); }
+  .ccard:not([data-slot="0"]) .cc-go { opacity: 0; }
+  /* 옆 카드(회색)일 때 글씨 배치: 1109 시안 */
+  .cc-t, .cc-s { transform-origin: 0 0; transition: transform .55s cubic-bezier(.65,0,.35,1); }
+  .ccard:not([data-slot="0"]) .cc-t { transform: translateY(9px); }
+  .ccard:not([data-slot="0"]) .cc-s { transform: translateY(19px); }
+  /* ── Lucky Moments (스토리) ── */
+  #scr-story { background: #0e0e0e; }
+  #story { position: absolute; inset: 0; overflow: hidden; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; touch-action: pan-y; }
+  #story.slide-l { animation: stInL .42s cubic-bezier(.22,1,.36,1); } #story.slide-r { animation: stInR .42s cubic-bezier(.22,1,.36,1); }
+  @keyframes stInL { from { transform: translateX(42%); opacity: .2; } } @keyframes stInR { from { transform: translateX(-42%); opacity: .2; } }
+  #stPhoto { position: absolute; left: 20px; top: 125px; width: 362px; height: 424px; transform-origin: 50% 0;
+    -webkit-mask: url(__img_lm_mask__) 0 0 / 100% 100%; mask: url(__img_lm_mask__) 0 0 / 100% 100%; touch-action: none; }
+  #stImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; transition: object-position .4s cubic-bezier(.22,1,.36,1); }
+  #story.typing #stImg { object-position: 50% 50% !important; }
+  #stCap { position: absolute; left: 50%; top: 29px; height: 39px; min-width: 217px; padding: 0 29px; transform: translateX(-50%); border-radius: 45px;
+    background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 500; letter-spacing: -1.05px; white-space: nowrap; }
+  #stCap:empty { display: none; }
+  .stk { position: absolute; width: 0; height: 0; }
+  .stk-art { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
+  .stk-art img { position: absolute; image-rendering: pixelated; pointer-events: none; }
+  .stk-label { position: absolute; left: 0; top: 0; transform: translate(-50%, var(--lo)); height: 25px; padding: 0 9px; border-radius: 27px;
+    background: rgba(255,255,255,.5); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #000; font-size: 13px; font-weight: 600;
+    letter-spacing: -.52px; line-height: 25px; white-space: nowrap; }
+  .stk.stamp .stk-art { animation: stkStamp .55s cubic-bezier(.2,.9,.3,1.2) both; animation-delay: var(--dl, 0ms); }
+  .stk.stamp .stk-label { animation: stkLabel .35s cubic-bezier(.34,1.56,.64,1) both; animation-delay: calc(var(--dl, 0ms) + 280ms); }
+  @keyframes stkStamp { 0% { opacity: 0; scale: 1.9; rotate: -14deg; } 45% { opacity: 1; scale: .86; rotate: 5deg; } 70% { scale: 1.08; rotate: -2deg; } 100% { opacity: 1; scale: 1; rotate: 0deg; } }
+  @keyframes stkLabel { from { opacity: 0; scale: .6; translate: 0 -6px; } to { opacity: 1; scale: 1; translate: 0 0; } }
+  .stk.ghost { z-index: 30; pointer-events: none; } .stk.ghost .stk-art { transform: translate(-50%, -50%) scale(1.15); filter: drop-shadow(0 6px 12px rgba(0,0,0,.5)); }
+  /* 끌어 놓기: 들고 있던 크기·그림자 그대로 이어서 '쿵' 내려앉음 (사라졌다가 다시 찍히지 않게) */
+  .stk.drop .stk-art { animation: stkDrop .5s cubic-bezier(.3,.9,.35,1.15) both; }
+  .stk.drop .stk-label { animation: stkLabel .35s cubic-bezier(.34,1.56,.64,1) .22s both; }
+  @keyframes stkDrop { 0% { scale: 1.15; filter: drop-shadow(0 6px 12px rgba(0,0,0,.5)); } 40% { scale: .86; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); } 70% { scale: 1.05; } 100% { scale: 1; filter: none; } }
+  #stAuthor { position: absolute; left: 0; right: 0; top: 564px; height: 36px; display: flex; justify-content: center; align-items: center; gap: 7px; }
+  .st-av { position: relative; width: 35px; height: 35px; border-radius: 50%; overflow: hidden; border: 1.3px solid #7b7b7b; background: #d1d7de; flex: none; }
+  .st-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+  #stName { font-size: 18px; font-weight: 700; letter-spacing: -.72px; }
+  .st-btn { position: absolute; display: grid; place-items: center; border-radius: 50%; background: rgba(63,63,63,.3); border: 1.4px solid #2d2d2d;
+    padding: 0; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform .15s var(--ease), opacity .25s var(--ease); }
+  .st-btn:active { transform: scale(.9); }
+  .st-btn img { image-rendering: pixelated; pointer-events: none; }
+  #stHint { position: absolute; left: 0; right: 0; top: 729px; margin: 0; text-align: center; font-size: 14px; letter-spacing: -.56px; color: rgba(255,255,255,.7); }
+  #stMsg { position: absolute; left: 20px; top: 780px; width: 362px; height: 60px; border-radius: 40px; background: #282828; }
+  #stIn { width: 100%; height: 100%; padding: 0 70px 0 35px; border: 0; outline: 0; background: transparent; color: #fff; font: inherit; font-size: 18px; letter-spacing: -.72px; caret-color: #FF39C7; }
+  #stIn::placeholder { color: rgba(255,255,255,.8); }
+  #stSend { position: absolute; right: 9px; top: 8px; width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; background: #FF39C7; display: grid; place-items: center; cursor: pointer; }
+  #stSend:active { transform: scale(.9); }
+  #stKbd { position: absolute; left: 0; top: 566px; width: 402px; height: 308px; transform: translateY(100%); pointer-events: none; }
+  #stPhoto, #stAuthor, #stMsg, #stSend, #stHint, #stKbd { transition: transform .4s cubic-bezier(.22,1,.36,1), top .4s cubic-bezier(.22,1,.36,1), height .4s cubic-bezier(.22,1,.36,1),
+    width .4s cubic-bezier(.22,1,.36,1), right .4s cubic-bezier(.22,1,.36,1), background .35s var(--ease), opacity .25s var(--ease); }
+  /* 메시지 입력: 사진이 작아지며 위로, 키보드가 올라옴 ('Lucky Moments_텍스트 입력' 시안) */
+  #story.typing #stPhoto { height: 442px; transform: translateY(-42px) scale(.73); }   /* 시안: 264×323 */
+  #story.typing #stAuthor { transform: translateY(-145px) scale(.83); }
+  #story.typing .st-btn, #story.typing #stHint { opacity: 0; pointer-events: none; }
+  #story.typing #stMsg { top: 501px; width: 356px; height: 52px; background: #2d2d2d; }
+  #story.typing #stIn { font-size: 17px; padding-left: 22px; padding-right: 56px; }
+  #story.typing #stSend { top: 5px; right: 5px; width: 42px; height: 42px; }
+  #story.typing #stKbd { transform: none; }
+  #stBackHide { position: absolute; left: 18px; top: 56px; width: 52px; height: 52px; border-radius: 50%; background: #0e0e0e; opacity: 0; pointer-events: none; transition: opacity .25s var(--ease); }
+  #story.typing #stBackHide { opacity: 1; }   /* 입력 중에는 뒤로 버튼 없음 (시안) */
+  .ccard.wrap { z-index: 0 !important; animation: ccWrap .55s cubic-bezier(.65,0,.35,1); }
+  .ccard.leave { z-index: 2 !important; }
+  @keyframes ccWrap { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  .ccard[data-slot="0"].pressed { transform: scale(.97); transition: transform .12s var(--ease-out); }
+
+  /* 오늘의운세_화면: 딤2와 같은 자리의 카드라 부드럽게 겹쳐 바뀜 */
+  #fortune { opacity: 0; visibility: hidden; transform: none; transition: opacity .55s var(--ease), visibility 0s linear .55s; }
+  .s-fortune #fortune { opacity: 1; visibility: visible; transform: none; transition: opacity .55s var(--ease), visibility 0s; }
+  .s-home #fortune { opacity: 0; visibility: hidden; transform: none; transition: opacity .45s var(--ease), visibility 0s linear .45s; }
+
+  /* 카메라 (새 뷰파인더·셔터 위치) */
+  #vf { left: 16px; top: 200px; width: 372px; height: 452px; overflow: hidden;
+        -webkit-mask: url(__img_n_cam_mask__) 0 0 / 100% 100%; mask: url(__img_n_cam_mask__) 0 0 / 100% 100%; }
+  #shutter { left: 161.5px; top: 676px; width: 81px; height: 81px; background: transparent; }
+  #shutter::before { content: ""; position: absolute; left: 6.5px; top: 6.5px; width: 68px; height: 68px; border-radius: 50%; background: #000; }
+  #shutter i { left: 8.5px; top: 8.5px; width: 64px; height: 64px; }
+
+  /* 참 (새 위치) */
+  #charm { left: 110px; top: 320px; width: 190px; height: 290px; transform-origin: 159px 35px; }
+
+  /* 채팅 */
+  #scr-chat { background: #121212; }
+  #chMsgs { top: 190px; height: 570px; padding-bottom: 0; }
+  .ch-thread { height: 500px; }
+  .ch-thread img { position: absolute; display: block; pointer-events: none; }
+  .ch-thread img.nm { opacity: 0; transform: translateY(14px) scale(.97); transform-origin: 100% 100%; transition: opacity .35s var(--ease), transform .5s var(--spring); }
+  .ch-thread img.nm.show { opacity: 1; transform: none; }
+  #mixBubble { transition: transform .4s var(--spring); }
+  #mixBubble:active { transform: scale(.97); }
+  #mxDim { background: #1a0f1a; }
+  /* 겹쳐보기 카드: 물음표 묶음 = 세 장의 실제 카드가 겹쳐 있는 모습(겹친 앞면 n_mix_face_*) → 그 카드들이 그대로 탄력 있게 펼쳐지며 앞면이 걷힘
+     (묶음 그림이 사라지고 새 카드가 나타나지 않게. 자리·기울기 값은 make_mix_faces.py가 계산) */
+  #mxStack { visibility: hidden; }
+  #mxItem, #mxItemF { z-index: 1; } #mxItemF { z-index: 2; } #mxMusic { z-index: 3; } #mxMusicF { z-index: 4; } #mxPlace { z-index: 5; } #mxPlaceF { z-index: 6; }
+  #mxDim .mxf { pointer-events: none; }
+  #mxDim .mxc2, #mxDim .mxf { opacity: 0; cursor: pointer; transform: translate(var(--tx), calc(var(--ty) + 12px)) rotate(var(--r)) scale(var(--s));
+                 transition: opacity .2s var(--ease), transform .2s var(--ease); }
+  .mixing #mxDim .mxc2 { opacity: 0; transform: translate(var(--tx), var(--ty)) rotate(var(--r)) scale(var(--s)); transition: transform .7s var(--ease-out) .18s; }   /* 겹쳐 있을 땐 앞면(같은 모양·그림자)만 보임 */
+  .mixing #mxDim .mxf { opacity: 1; transform: translate(var(--tx), var(--ty)) rotate(var(--r)) scale(var(--s));
+                 transition: opacity .5s var(--ease) .18s, transform .7s var(--ease-out) .18s; }
+  .mixing.spread #mxDim .mxc2 { opacity: 1; transform: none; transition: opacity 0s, transform .62s cubic-bezier(.3, 1.35, .55, 1) var(--dl, 0s); }
+  .mixing.spread #mxDim .mxf { opacity: 0; transform: none;
+                 transition: transform .62s cubic-bezier(.3, 1.35, .55, 1) var(--dl, 0s), opacity .34s var(--ease) calc(var(--dl, 0s) + .06s); }
+  #mxPlace, #mxPlaceF { --dl: 0s; } #mxMusic, #mxMusicF { --dl: .05s; } #mxItem, #mxItemF { --dl: .1s; }
+  .mixing.spread #mxDim .mxc2:active { transform: scale(.96); transition: transform .12s; }
+
+
+  /* ═════ 시나리오 2 ═════ */
+  /* 채팅: 겹쳐보기 대화(B) → 장소 공유 후 메시지 → 운세 순위 비교 대화(A, 순위 '확인' 뒤 등장) */
+  .thread-b { position: absolute; left: 0; top: 0; width: 402px; height: 500px; }
+  .ch-thread { height: 524px; }
+  .ch-thread > img.thread-a { opacity: 0; visibility: hidden; transform: translateY(18px);
+                              transition: opacity .3s var(--ease), transform .3s var(--ease), visibility 0s .3s, top .5s var(--ease); }
+  .ch-thread > img.thread-a.show { opacity: 1; visibility: visible; transform: none;
+                              transition: opacity .45s var(--ease), transform .6s var(--spring), visibility 0s, top .5s var(--ease); }
+  #chRoute { pointer-events: none; } #chRoute.on { pointer-events: auto; }
+  .ch-spacer { height: 0; transition: height .55s var(--ease); }
+  .ranked .ch-spacer { height: 102px; }
+  #rkPanel { position: absolute; left: 0; top: 0; width: 402px; height: 292px; overflow: hidden; pointer-events: none;
+             opacity: 0; clip-path: inset(0 0 102px 0 round 0 0 26px 26px); transition: opacity .25s var(--ease) .3s, clip-path .55s var(--ease); }
+  #rkPanel img { display: block; width: 402px; height: 292px; }
+  .ranked #rkPanel { opacity: 1; clip-path: inset(0 0 0 0 round 0 0 26px 26px); transition: opacity .2s var(--ease), clip-path .55s var(--ease); }
+  /* 순위 딤 */
+  #rkDim { background: #141414; }
+  #rkBg1 { opacity: 0; transition: opacity .2s; }
+  .dimmed.rk-reveal #rkBg1 { opacity: 1; transition: opacity .6s var(--ease) .5s; }
+  #rkTitle { opacity: 0; transform: translateY(14px); transition: opacity .2s, transform .2s; }
+  .dimmed #rkTitle { opacity: 1; transform: none; transition: opacity .55s var(--ease) .15s, transform .8s var(--ease-out) .15s; }
+  .dimmed.rk-reveal #rkTitle { transform: translateY(-179px); transition: transform .85s cubic-bezier(.65,0,.35,1); }
+  /* 1등 발표: 카드가 톡 튀어나오는 순간 스티커도 위에서 함께 떨어져 '쿵' 하고 자리 잡음 */
+  #rkCard { opacity: 0; transform: translateY(34px) scale(.78); transform-origin: 50% 40%; transition: opacity .2s, transform .2s; }
+  .dimmed.rk-reveal #rkCard { opacity: 1; transform: none; transition: opacity .35s var(--ease) .62s, transform .85s cubic-bezier(.3,1.55,.5,1) .62s; }
+  .dimmed.rk-reveal #rkDim .drop { opacity: 1; transform: none; transition: opacity .25s linear calc(.58s + var(--dl)), transform .9s cubic-bezier(.25,1.35,.45,1) calc(.58s + var(--dl)); }
+  .dimmed:not(.rk-reveal) #rkDim .drop { opacity: 0; transform: translate3d(0, var(--y), 0) rotate(var(--r)); }
+  #rkOk, #rkGift { pointer-events: none; }
+  .dimmed.rk-reveal #rkOk, .dimmed.rk-reveal #rkGift { pointer-events: auto; }
+  /* 키링_2 */
+  #evFinal { position: absolute; inset: 0; z-index: 70; pointer-events: none; }
+  #evFinal .hot { pointer-events: none; }
+  #evFinal.show .hot { pointer-events: auto; }
+  #evKeyBg { opacity: 0; transition: opacity .2s; }
+  #evFinal.show #evKeyBg { opacity: 1; transition: opacity 1s var(--ease); }
+  #evKey { opacity: 0; transform-origin: 124px 28px; will-change: transform, opacity; }
+  #evKeyTitle, #evKeyBtns { opacity: 0; transform: translateY(12px); transition: opacity .2s, transform .2s; }
+  #evFinal.show #evKeyTitle { opacity: 1; transform: none; transition: opacity .8s var(--ease) .9s, transform 1s var(--ease-out) .9s; }
+  #evFinal.show #evKeyBtns { opacity: 1; transform: none; transition: opacity .8s var(--ease) 2.4s, transform 1s var(--ease-out) 2.4s; }   /* 키링_2_버튼x를 잠시 보여 준 뒤 버튼 */
+  #ev-keyring, #ev-t2 { display: none !important; }
+  #scr-evening .ev-btns { display: none; }
+
+  .phone, .scaler { overflow: clip; }   /* 폰 화면 자체가 스크롤되어 밀리지 않게 */
+  .replay-wrap { position: fixed; right: 16px; bottom: 16px; z-index: 100; display: flex; gap: 8px; }
+  .replay-wrap .replay { position: static; }
+  #replayFortune { opacity: .6; }
+  .replay {
+    position: fixed; right: 16px; bottom: 16px; z-index: 100; font: inherit; font-size: 13px;
+    padding: 8px 14px; border-radius: 999px; border: 1px solid #333; background: #1d1d1d; color: #ddd; cursor: pointer;
+  }
+
+  /* ── 기본 버튼들 (하트·공유·재생 등): 눌림 반응 + 토글 + 안내 토스트 */
+  .sb { position: absolute; cursor: pointer; border-radius: 999px; z-index: 6; -webkit-tap-highlight-color: transparent; --s: 22px; }
+  .sb::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--rip, rgba(255,255,255,.16));
+    opacity: 0; transform: scale(.7); transition: opacity .4s var(--ease), transform .5s var(--ease); pointer-events: none; }
+  .sb.light { --rip: rgba(0,0,0,.07); }
+  .sb.rip::before { opacity: 1; transform: none; transition: opacity .08s linear, transform .25s var(--ease-out); }
+  .sb .ic { position: absolute; left: 50%; top: 50%; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+    opacity: 0; transform: scale(.4); transition: opacity .18s var(--ease), transform .4s var(--spring); pointer-events: none; }
+  .sb.on .ic { opacity: 1; transform: none; }
+  .sb.pop .ic { animation: sbPop .45s var(--ease); }
+  @keyframes sbPop { 0% { transform: scale(.4); } 55% { transform: scale(1.28); } 100% { transform: scale(1); } }
+  .sb .burst { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #ff4f74; opacity: 0; pointer-events: none; }
+  .sb.pop .burst { animation: sbBurst .55s var(--ease-out); }
+  /* 운세 저장 하트: 시안의 하트 테두리(347~369, 73~92)를 정확히 덮는 하얀 하트가 부드럽게 차오름 (터지는 효과 없음) */
+  .sb.heart-w .ic { left: 12.8px; top: 13.8px; width: 22.4px; height: 19.6px; margin: 0; transform-origin: 50% 55%;
+    opacity: 0; transform: scale(.72); transition: opacity .32s var(--ease), transform .42s var(--ease-out); }
+  .sb.heart-w.on .ic { opacity: 1; transform: none; }
+  .sb.heart-w.pop .ic { animation: none; }
+  @keyframes sbBurst { 0% { opacity: 1; transform: rotate(var(--a)) translateY(-6px) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-24px) scale(.4); } }
+  #toast { position: absolute; left: 50%; bottom: 122px; z-index: 999; transform: translate(-50%, 12px); max-width: 340px; padding: 11px 18px;
+    border-radius: 22px; background: rgba(38, 38, 42, .94); color: #fff; font-size: 13.5px; font-weight: 500; letter-spacing: -.2px; line-height: 1.35;
+    white-space: nowrap; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.28); opacity: 0; pointer-events: none;
+    transition: opacity .28s var(--ease), transform .4s var(--ease); }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  /* 카메라 배율 1x ↔ 2x, 전환 */
+  #vfPhoto { scale: 1; transition: scale .55s var(--ease); }
+  #scr-cam.zoom2 #vfPhoto { scale: 1.6; }
+  #zoomChip { position: absolute; left: 178px; top: 588px; width: 46px; height: 46px; border-radius: 50%; background: #1f1f1d; color: #fff;
+    font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s var(--ease); pointer-events: none; }
+  #scr-cam.zoom2 #zoomChip { opacity: 1; }
+  #vf.flip { animation: vfFlip .6s var(--ease); }
+  @keyframes vfFlip { 0% { transform: none; } 50% { transform: perspective(900px) rotateY(90deg); filter: brightness(.4) blur(3px); } 100% { transform: none; } }
+  /* 채팅 입력: 실제로 글을 써서 보낼 수 있음 */
+  #chInEmpty { opacity: 0; transition: opacity .15s linear; pointer-events: none; }
+  #scr-chat.typing #chInEmpty { opacity: 1; }
+  #chIn { position: absolute; left: 44px; top: 785px; width: 274px; height: 38px; border: 0; outline: 0; background: transparent; color: #fff;
+    font: inherit; font-size: 16px; letter-spacing: -.3px; caret-color: #fff; padding: 0; z-index: 6; }
+  #chSend { position: absolute; left: 329px; top: 783px; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; z-index: 6; transition: transform .3s var(--spring); }
+  #chSend.pressed { transform: scale(.88); transition: transform .1s var(--ease-out); }
+  .ch-thread > .mine { position: absolute; right: 20px; max-width: 250px; padding: 10px 16px; border-radius: 14px; background: #efefef; color: #111;
+    font-size: 14.5px; line-height: 19px; letter-spacing: -.2px; white-space: pre-wrap; word-break: break-all;
+    opacity: 0; transform: translateY(12px) scale(.96); transform-origin: 100% 100%; transition: opacity .3s var(--ease), transform .45s var(--spring); }
+  .ch-thread > .mine.show { opacity: 1; transform: none; }
+  .mx-sb { pointer-events: none !important; } .spread .mx-sb { pointer-events: auto !important; }
+
+  /* ── 딤2 카드: 흐르는 빛 (카드 안만 보이게 둥근 모서리로 자름) ── */
+  #dimLive { left: 37px; top: 233px; width: 328px; height: 326px; overflow: hidden;
+              -webkit-mask: url(__img_n_dim_mask__) 0 0 / 100% 100%; mask: url(__img_n_dim_mask__) 0 0 / 100% 100%; opacity: 0; transition: opacity 1.9s var(--ease); }
+  #dimUni { opacity: 0; transition: opacity 1.9s var(--ease); animation: uniFloat 4.8s ease-in-out infinite; }
+  .s-clear #dimLive, .s-clear #dimUni { opacity: 1; }
+  #dimLive i { position: absolute; display: block; pointer-events: none; will-change: transform, opacity; }
+  /* 위쪽 흰 빛: 아래로 번졌다가 다시 올라감 */
+  #dimLive .dl-glow { left: -30%; top: -46%; width: 160%; height: 100%; transform-origin: 50% 0;
+    background: radial-gradient(ellipse 50% 50% at 50% 46%, rgba(170,245,255,.14) 0%, rgba(70,220,255,.09) 40%, rgba(40,200,240,.03) 66%, rgba(40,200,240,0) 82%);   /* 1110 시안: 위쪽 청록 빛 */
+    animation: dlGlow 5.6s cubic-bezier(.45,0,.55,1) infinite; }
+  /* 테두리 청록 빛: 가운데는 어둡게 두고, 가장자리 빛이 숨 쉬듯 안쪽으로 번졌다 물러남 (1110 시안: 어두운 가운데 + 밝은 테두리) */
+  #dimLive .dl-band { inset: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse 62% 60% at 50% 46%, rgba(40,210,240,0) 62%, rgba(40,210,240,.1) 84%, rgba(90,235,255,.26) 100%);
+    animation: dlBand 5.6s cubic-bezier(.45,0,.55,1) infinite; }
+  /* 가운데 어둠: 테두리 빛과 반대로 살짝 오르내려 명암이 출렁이게 (가운데는 시안처럼 어둡게) */
+  #dimLive .dl-deep { left: 0; bottom: -20px; width: 100%; height: 190px;
+    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,6,10,.6) 0%, rgba(0,6,10,.3) 55%, rgba(0,6,10,0) 100%);
+    animation: dlDeep 5.6s cubic-bezier(.45,0,.55,1) infinite; }
+  /* 유리 같은 두꺼운 테두리 */
+  #dimLive .dl-rim { display: none !important; inset: 0; border-radius: inherit;
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.28), inset 0 10px 22px rgba(255,255,255,.22), inset 0 -14px 26px rgba(0,0,0,.25); }
+  @keyframes dlGlow { 0%, 100% { transform: scale(1, .82); opacity: .78; } 50% { transform: scale(1.06, 1.22); opacity: 1; } }
+  @keyframes dlBand { 0%, 100% { transform: scale(1.06); opacity: .55; } 50% { transform: scale(.97); opacity: 1; } }
+  @keyframes dlDeep { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(-14px); opacity: .75; } }
+  /* ── 1110 오늘의 운세: 실제 글꼴로 그린 글자·버튼 (시안 이미지 대신 → 레티나·고해상도에서도 선명) ── */
+  .round-btn { position: absolute; width: 48px; height: 48px; display: block; }
+  .round-btn svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .round-btn circle { fill: #2a2a2a; }
+  .round-btn path { stroke: #fff; stroke-width: 2.2; stroke-linecap: round; fill: none; }
+  #dimX { cursor: pointer; transition: transform .3s var(--spring); }
+  #dimX:active { transform: scale(.92); transition: transform .1s var(--ease-out); }
+  #dimCopy, #fortune .ft, .pill-btn { font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  #dimCopy { left: 37px; top: 233px; width: 328px; text-align: center; color: #fff; pointer-events: none; }
+  #dimCopy p { margin: 0; }
+  #dimCopy .dc-date { position: absolute; left: 0; right: 0; top: 74px; font-size: 15px; font-weight: 500; line-height: 20px; letter-spacing: -.1px; }
+  #dimCopy .dc-title { position: absolute; left: 0; right: 0; top: 128px; font-family: "ZEN SERIF", serif; font-size: 32px; font-weight: 400; line-height: 41.6px; letter-spacing: 0; }   /* 영문 시안: ZEN SERIF 32 · 130% */
+  .pill-btn { border: 0; padding: 0; margin: 0; border-radius: 999px; background: #fff; color: #111; font: inherit;
+    font-size: 17px; font-weight: 700; letter-spacing: -.3px; line-height: 47px; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #fortune .ft { margin: 0; white-space: nowrap; }
+  .ft-date { left: 0; width: 402px; top: 119px; text-align: center; color: #9b9b9b; font-family: "Urbanist", -apple-system, sans-serif !important; font-size: 18px; font-weight: 500; line-height: 22px; letter-spacing: .36px; }   /* 영문 시안: Urbanist Medium 18 · 2% */
+  #fortune .ft-title { left: 0; width: 402px; top: 154px; text-align: center; color: #fff; font-family: "ZEN SERIF", serif; font-size: 38.2px; font-weight: 400; line-height: 52px; letter-spacing: 0; }
+  .ft-head { left: 0; width: 402px; top: 582px; text-align: center; color: #fff; font-size: 21px; font-weight: 700; line-height: 28px; letter-spacing: -.3px; }
+  .ft-body { left: 0; width: 402px; top: 624px; text-align: center; color: #cfcfd0; font-size: 14px; font-weight: 400; line-height: 21.5px; letter-spacing: 0; }
+  .ft-body b { color: #fff; font-weight: 700; }
+  .ft-chip { height: 40px; border-radius: 20px; background: rgba(255,255,255,.11); color: #19e3ff; font-size: 13.5px; font-weight: 600; line-height: 40px; letter-spacing: -.2px; text-align: center; }
+  @keyframes uniFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .s-fortune #dimLive i, .s-fortune #dimUni { animation-play-state: paused; }
+
+  /* ── 참 화면: 아래 초록 빛 ── */
+  #charmGlow { left: 0; top: 470px; width: 402px; height: 404px; overflow: hidden; background: #121212; pointer-events: none; }
+  #charmGlow i { position: absolute; display: block; will-change: transform, opacity; opacity: 0; }
+  #charmGlow .cg-base { inset: 0; transform: translateY(46%);
+    background: linear-gradient(to top, rgb(26,190,126) 0%, rgb(14,136,106) 22%, rgb(11,98,84) 38%, rgb(12,63,58) 54%, rgb(16,39,37) 70%, rgb(18,25,25) 84%, rgba(18,18,18,0) 100%); }
+  #charmGlow .cg-a { left: -10%; bottom: -150px; width: 120%; height: 380px; transform-origin: 50% 100%;
+    background: radial-gradient(ellipse 50% 50% at 50% 60%, rgba(64,236,140,.8) 0%, rgba(40,214,140,.42) 42%, rgba(30,200,140,0) 74%); }
+  #charmGlow .cg-b { left: -40%; bottom: -60px; width: 90%; height: 300px;
+    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(30,210,180,.42) 0%, rgba(30,210,180,0) 70%); filter: blur(8px); }
+  #charmGlow .cg-c { right: -40%; bottom: -80px; width: 90%; height: 320px;
+    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(80,240,120,.36) 0%, rgba(80,240,120,0) 70%); filter: blur(8px); }
+  /* 차오름: 참과 함께 아래에서 올라옴 */
+  .cg-on #charmGlow .cg-base { opacity: 1; transform: none; transition: opacity 1.1s var(--ease), transform 1.6s cubic-bezier(.22,.8,.3,1); }
+  .cg-on #charmGlow .cg-a { opacity: 1; transition: opacity 1.4s var(--ease) .3s; animation: cgBreath 5.2s cubic-bezier(.45,0,.55,1) .3s infinite; }
+  .cg-on #charmGlow .cg-b { opacity: 1; transition: opacity 1.6s var(--ease) .5s; animation: cgDriftL 6.4s cubic-bezier(.45,0,.55,1) infinite; }
+  .cg-on #charmGlow .cg-c { opacity: 1; transition: opacity 1.6s var(--ease) .7s; animation: cgDriftR 7.2s cubic-bezier(.45,0,.55,1) infinite; }
+  @keyframes cgBreath { 0%, 100% { transform: translateY(40px) scale(1, .86); } 50% { transform: translateY(-34px) scale(1.08, 1.2); } }
+  @keyframes cgDriftL { 0%, 100% { transform: translate(0, 10px); } 50% { transform: translate(110px, -40px); } }
+  @keyframes cgDriftR { 0%, 100% { transform: translate(0, -20px); } 50% { transform: translate(-120px, 24px); } }
+</style>
+<div class="phone" id="phone">
+<script>/* 첫 화면: 기본 주소(온보딩부터)면 화면을 그리기 전에 바로 온보딩 상태로 둠 → 오늘의 운세(기운 도착) 화면이 잠깐 비쳤다 사라지지 않음 */
+(function () { var h = location.hash.slice(1); if (["home", "friends", "keyring", "fortune"].indexOf(h) < 0) { window.BOOT_ONB = true; document.getElementById("phone").classList.add("tab-freq", "onb", "onb-wait"); } })();</script>
+ <div class="scaler" id="scaler">
+  <div id="homeVeil"></div>
+
+  <!-- 4·5. 홈_기본 / 홈_탭했을 때 -->
+  <div class="layer" id="home">
+   <div class="inner">
+    <img class="abs" src="__img_n_home_base__" style="left:0;top:0;width:402px;height:874px" alt="SUN, OCT 19, 2026 — Today, you need Water energy">
+    <div class="sb" data-fx="toast" data-msg="Settings are coming soon" role="button" aria-label="Settings" style="left:334px;top:60px;width:44px;height:44px;"></div>
+    <div class="hot" id="ctaCapture" role="button" aria-label="Save Today’s Luck" style="left:136px;top:356px;width:130px;height:40px;border-radius:20px"></div>
+    <!-- Lucky 캐러셀: 가운데 카드를 누르면 상세, 옆 카드를 누르거나 좌우로 밀면 회전 -->
+    <div id="carousel">
+      <div class="ccard" data-go="item" data-slot="0"><div class="cc-bg cc-item"></div><div class="cc-gray"></div>
+        <img class="cc-t" src="__img_n_t_item__" alt="Lucky Item"><p class="cc-s">Your energy item</p><i class="cc-go"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></div>
+      <div class="ccard" data-go="place" data-slot="-1"><div class="cc-bg cc-place"></div><div class="cc-gray"></div>
+        <img class="cc-t" src="__img_n_t_place__" alt="Lucky Place"><p class="cc-s">Today’s spot<br>to bring you luck</p><i class="cc-go"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></div>
+      <div class="ccard" data-go="music" data-slot="1"><div class="cc-bg cc-music"></div><div class="cc-gray"></div>
+        <img class="cc-t" src="__img_n_t_music__" alt="Lucky Music"><p class="cc-s">Today’s tracks that<br>charge your luck</p><i class="cc-go"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i></div>
+    </div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 친구방 (하단 내비 탭) -->
+  <div class="layer" id="friends">
+   <div class="inner">
+    <div id="frScroll">
+      <div class="fr-content">
+        <img src="__img_n_fr_top__" style="width:402px;height:549px" alt="Luck Chat · Today’s Lucky Moments" draggable="false">
+        <div class="hot" id="luckyTalk" style="left:0;top:16px;width:300px;height:76px" aria-label="Luck Chat"></div>
+        <div class="sb" data-fx="toast" data-msg="New chat rooms are coming soon" role="button" aria-label="Add chat room" style="left:340px;top:19px;width:44px;height:44px;"></div>
+        <div class="sb" data-fx="toast" data-msg="Posting your own moment is coming soon" role="button" aria-label="Add moment" style="left:346px;top:491px;width:44px;height:44px;"></div>
+        <div id="rooms" aria-label="Luck Chat rooms"></div>
+        <div id="frRow"><div class="fr-row-in"><img src="__img_fr_row__" alt="Lucky Moments" draggable="false">
+          <button class="moment-hot" data-moment="unahynn" style="left:20px" aria-label="View Unahynn’s story"></button>
+          <button class="moment-hot" data-moment="sumin" style="left:190px" aria-label="View Sumin’s story"></button>
+          <button class="moment-hot" data-moment="minhee" style="left:361px" aria-label="View Minhee’s story"></button>
+          <button class="moment-hot" data-moment="ssu" style="left:531px" aria-label="View SSU’s story"></button>
+          <button class="moment-hot" data-moment="kwon" style="left:702px" aria-label="View Kwon’s story"></button>
+        </div></div>
+      </div>
+      <div class="fr-pad"></div>
+    </div>
+    <img class="abs" src="__img_n_fr_head__" style="left:0;top:0;width:402px;height:104px" alt="Friends">
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Moments (친구 스토리): 사진 + 기운 스티커 + 메시지 (1109 시안) -->
+  <div class="layer push" id="scr-story">
+   <div class="inner">
+    <div id="story">
+     <img class="abs" src="__img_lm_head__" style="left:0;top:0;width:402px;height:112px" alt="">
+     <div id="stPhoto"><img id="stImg" alt="" draggable="false"><div id="stCap"></div><div id="stStk"></div></div>
+     <div id="stAuthor"><span class="st-av"><img id="stAv" alt="" draggable="false"></span><b id="stName"></b></div>
+     <div id="stBtns"></div>
+     <p id="stHint">Tap to send energy</p>
+     <div id="stMsg"><input id="stIn" placeholder="Leave a message" autocomplete="off" inputmode="none" aria-label="Leave a message"><button type="button" id="stSend" aria-label="Send"><svg width="30" height="31" viewBox="0 0 30 31" aria-hidden="true"><path fill="#fff" d="M23.95 14.18a.93.93 0 0 1-1.31 0l-6.77-6.77v18.18a.93.93 0 1 1-1.86 0V7.41l-6.77 6.77a.93.93 0 0 1-1.31-1.31l8.35-8.35a.93.93 0 0 1 1.31 0l8.35 8.35a.93.93 0 0 1 0 1.31z"/></svg></button></div>
+     <div class="home-indicator"></div>
+     <img id="stKbd" src="__img_lm_kbd__" alt="" draggable="false">
+     <i id="stBackHide"></i>
+     <div class="hot" id="stBack" style="left:12px;top:52px;width:64px;height:60px" aria-label="Back"></div>
+    </div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 하단 내비: 홈·친구방·주파수 모두 같은 모양 (팀원 앱 내비와 동일) -->
+  <nav class="bottom-nav" id="appNav" aria-label="Bottom navigation"><ul class="bottom-nav__list"><li><button type="button" data-tab="home" class="bottom-nav__item"><svg width="28" height="28" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M13.0098 3H15.0116V4.45584H16.0125V6.06766H17.0134V7.17687H18.0142V8.28609H19.0151V9.3953H20.016V10.5045H21.0169V11.6137H22.0178V12.7229H23.0187V13.8321H24.0196V14.9414H25.0205V16.0506H26.0214V17.1598H21.7752V25.9295H17.0134V19.3782H11.008V25.9295H6.36752V17.1598H2V16.0506H3.00089V14.9414H4.00178V13.8321H5.00267V12.7229H6.00356V11.6137H7.00445V10.5045H8.00534V9.3953H9.00623V8.28609H10.0071V7.17687H11.008V6.06766H12.0089V4.45584H13.0098V3Z"></path><rect x="9.03906" y="16.4648" width="10.1909" height="9.46296"></rect></svg><span>Home</span></button></li><li><button type="button" data-tab="myluck" class="bottom-nav__item"><svg width="28" height="28" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true"><path d="M15 13H13V11H11V9H9V3L13 3V5H15V3H19V9H17V11H15V13ZM15 13H17V11H19V9H25V13H23V15H25V19H19V17H17V15H15V13ZM9 19H3V15H5V13H3L3 9H9V11H11V13H13V15H11V17H9V19ZM9 19H11V17H13V15H15V17H17V19H19V25H15V23H13V25H9V19Z"></path></svg><span>Archive</span></button></li><li><button type="button" data-tab="friends" class="bottom-nav__item"><svg width="28" height="28" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.4116 3H16.9702V3.93174H17.8967V4.86348H18.8231V5.79521H19.7495V10.4539H18.8231V11.3856H17.8967V12.3174H16.9702V13.2491H11.4116V12.3174H10.4851V11.3856H9.55866V10.4539H8.63222V5.79521H9.55866V4.86348H10.4851V3.93174H11.4116V3ZM11.4116 15.1126H16.9702V16.0443H18.8231V16.9761H20.676V17.9078H21.6024V18.8395H22.5289V19.7713H23.4553V21.6348H24.3818V26.2934H23.4553V26.2094H4.92644V26.2934H4V21.6348H4.92644V19.7713H5.85289V18.8395H6.77933V17.9078H7.70578V16.9761H9.55866V16.0443H11.4116V15.1126Z"></path></svg><span>Friends</span></button></li><li><button type="button" data-tab="frequency" class="bottom-nav__item is-active" aria-current="page"><svg width="28" height="28" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M13.2322 0H15.2744V5.06944H16.2955V9.125H20.38V11.1528H19.3589V12.1667H22.4222V13.1806H26.5066V15.2083H22.4222V16.2222H19.3589V17.2361H20.38V19.2639H16.2955V23.3194H15.2744V28H13.2322V23.3194H12.2111V19.2639H8.12666V17.2361H9.14777V16.2222H6.08444V15.2083H2V13.1806H6.08444V12.1667H9.14777V11.1528H8.12666V9.125H12.2111V5.06944H13.2322V0Z"></path></svg><span>Energy</span></button></li></ul><div class="home-indicator"></div></nav>
+
+  <!-- 주파수 (팀원 앱 chiring/ 을 폰 화면 안에 그대로) -->
+  <div class="layer" id="freqLayer"><iframe id="freqFrame" title="Frequency" src="about:blank"></iframe></div>
+<script>/* 온보딩으로 시작하면 팀원 앱을 바로 불러오기 시작 (다른 이미지가 다 받아질 때까지 기다리지 않음) */
+if (window.BOOT_ONB) { var ff = document.getElementById("freqFrame"); ff.dataset.started = "1"; ff.src = "chiring/index.html#onboarding"; }</script>
+
+  <!-- 1·2. 오늘의운세_딤 / 딤2 -->
+  <div class="layer" id="dim">
+    <!-- 딤1(흐린 카드) → 딤2(선명한 카드): 같은 위치·크기의 시안 이미지를 교차. 글자·버튼·닫기는 실제 글꼴/SVG라 고해상도에서도 선명 -->
+    <img class="abs" src="__img_n_dim1__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div class="abs" id="dimCopy" aria-label="Your energy has arrived!">
+      <p class="dc-date">SUN, OCT 19, 2026</p>
+      <p class="dc-title">Your energy<br>has arrived!</p>
+    </div>
+    <img class="abs" id="dim2" src="__img_n_dim2__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <!-- 딤2 카드 속 빛이 흐르는 모션 (1110 시안: 테두리 청록 빛이 숨 쉬듯 번졌다 줄고, 위쪽 빛이 천천히 오르내림. 가운데는 어둡게 유지) -->
+    <div class="abs" id="dimLive"><i class="dl-glow"></i><i class="dl-band"></i><i class="dl-deep"></i><i class="dl-rim"></i></div>
+    <img class="abs" id="dimUni" src="__img_n_dim_key__" style="left:111px;top:295px;width:190px;height:203px" alt="">
+    <div class="abs round-btn" id="dimX" style="left:333px;top:58px" role="button" aria-label="Close"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="24"/><path d="M16.5 16.5l15 15m0-15l-15 15"/></svg></div>
+    <button type="button" class="abs reveal pill-btn" id="dimBtn" style="left:136px;top:579px;width:129px;height:47px">Reveal</button>
+  </div>
+
+  <!-- 3. 오늘의운세_화면 (1110 시안). 바탕(카드·열쇠·빛)만 이미지, 글자·칩·버튼은 실제 글꼴 → 고해상도에서도 선명 -->
+  <div class="layer" id="fortune">
+    <img class="abs" src="__img_n_fortune__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div class="abs round-btn" style="left:20px;top:58px" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="24"/><path d="M16.5 16.5l15 15m0-15l-15 15"/></svg></div>
+    <p class="abs ft ft-date">SUN, OCT 19, 2026</p>
+    <h2 class="abs ft ft-title">Today’s Lucky</h2>
+    <h3 class="abs ft ft-head">A day to start fresh</h3>
+    <p class="abs ft ft-body">Add a splash of <b>Water energy</b> to your day —<br>small shifts spark fresh ideas and good flow.</p>
+    <span class="abs ft ft-chip" style="left:101px;top:696px;width:112px">Sage Green</span>
+    <span class="abs ft ft-chip" style="left:221px;top:696px;width:77px">Pouch</span>
+    <span class="abs ft ft-chip" style="left:117px;top:744px;width:168px">Take a new route today</span>
+    <div class="sb heart-w" data-fx="heart" role="button" aria-label="Like" style="left:334px;top:59px;width:48px;height:48px;"><svg class="ic" viewBox="0 0 22 19.2" style="overflow:visible"><ellipse cx="11" cy="9.4" rx="14.5" ry="13.2" fill="#2a2a2a"/><path fill="#fff" d="M11 18.8C4.4 13.8.4 10.4.4 6 .4 2.7 2.9.3 5.9.3c2.1 0 4 1.2 5.1 2.95C12.1 1.5 14 .3 16.1.3c3 0 5.5 2.4 5.5 5.7 0 4.4-4 7.8-10.6 12.8z"/></svg></div>
+  </div>
+
+  <!-- Lucky Item -->
+  <div class="layer push" id="scr-item">
+   <div class="inner">
+    <img class="abs" src="__img_n_item_head__" style="left:0;top:0;width:402px;height:112px" alt="">
+    <img class="abs d-in d-hero" src="__img_n_item_hero__" style="left:0;top:112px;width:402px;height:393px" alt="">
+    <img class="abs d-in d-body" src="__img_n_item_body__" style="left:20px;top:505px;width:362px;height:65px" alt="">
+    <img class="abs d-in d-icons" src="__img_n_item_icons__" style="left:14px;top:605px;width:374px;height:140px" alt="">
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:20px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:144px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:267px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="abs d-in d-btn" style="left:14px;top:778px;width:374px;height:72px">
+      <img class="abs press" data-next="shop1" role="button" aria-label="Find My Parasol" src="__img_n_item_btn__" style="left:0;top:0;width:374px;height:72px;cursor:pointer" alt="Find My Parasol">
+    </div>
+    <img class="abs" src="__img_n_item_bar__" style="left:120px;top:850px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:72px;height:48px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Place -->
+  <div class="layer push" id="scr-place">
+   <div class="inner">
+    <img class="abs" src="__img_n_place_head__" style="left:0;top:0;width:402px;height:112px" alt="">
+    <img class="abs d-in d-hero" src="__img_n_place_hero__" style="left:0;top:112px;width:402px;height:393px" alt="">
+    <img class="abs d-in d-body" src="__img_n_place_body__" style="left:20px;top:505px;width:362px;height:65px" alt="">
+    <img class="abs d-in d-icons" src="__img_n_place_icons__" style="left:14px;top:605px;width:374px;height:140px" alt="">
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:20px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:144px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:267px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="abs d-in d-btn" style="left:14px;top:778px;width:374px;height:72px">
+      <img class="abs press" data-next="placelink" role="button" aria-label="Get Directions" src="__img_n_place_btn__" style="left:0;top:0;width:374px;height:72px;cursor:pointer" alt="Get Directions">
+    </div>
+    <img class="abs" src="__img_n_place_bar__" style="left:120px;top:850px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:72px;height:48px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Music -->
+  <div class="layer push" id="scr-music">
+   <div class="inner">
+    <img class="abs" src="__img_n_music_head__" style="left:0;top:0;width:402px;height:112px" alt="">
+    <img class="abs d-in d-hero" src="__img_n_music_hero__" style="left:0;top:112px;width:402px;height:393px" alt="">
+    <img class="abs d-in d-body" src="__img_n_music_body__" style="left:20px;top:505px;width:362px;height:65px" alt="">
+    <img class="abs d-in d-icons" src="__img_n_music_icons__" style="left:14px;top:605px;width:374px;height:140px" alt="">
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:20px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:144px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:267px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="abs d-in d-btn" style="left:14px;top:778px;width:374px;height:72px">
+      <img class="abs press" data-next="musiclink" role="button" aria-label="Listen Now" src="__img_n_music_btn__" style="left:0;top:0;width:374px;height:72px;cursor:pointer" alt="Listen Now">
+    </div>
+    <img class="abs" src="__img_n_music_bar__" style="left:120px;top:850px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:72px;height:48px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Place_연결 -->
+  <div class="layer push shop" id="scr-placelink">
+   <div class="inner">
+    <img class="abs" src="__img_place_link__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div class="sb light"  data-fx="toggle" data-on="Removed from My Places" data-off="Saved to My Places again" role="button" aria-label="Save" style="--s:30px;left:298px;top:49px;width:44px;height:44px;"><svg class="ic" viewBox="0 0 30 30"><rect x="-2" y="-2" width="34" height="34" fill="#fff"/><path fill="none" stroke="#b5b5b5" stroke-width="2" stroke-linejoin="round" d="M15 3.6l3.4 7.2 7.8.9-5.8 5.3 1.6 7.8L15 20.9l-7 3.9 1.6-7.8-5.8-5.3 7.8-.9z"/></svg></div>
+    <div class="hot back" style="left:348px;top:48px;width:50px;height:50px" aria-label="Close"></div>
+    <div class="sb light" data-fx="toast" data-msg="Set as starting point" role="button" aria-label="From" style="left:14px;top:197px;width:68px;height:42px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Starting directions to House of Vinyl" role="button" aria-label="To" style="left:88px;top:197px;width:70px;height:42px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Place link copied" role="button" aria-label="Share" style="left:162px;top:197px;width:74px;height:42px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Calls aren’t available in this demo" role="button" aria-label="Call" style="left:240px;top:197px;width:74px;height:42px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Inquiries are coming soon" role="button" aria-label="Inquire" style="left:318px;top:197px;width:72px;height:42px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Phone number copied" role="button" aria-label="Copy" style="left:176px;top:734px;width:46px;height:30px;border-radius:8px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Instagram isn’t available in this demo" role="button" aria-label="Instagram" style="left:10px;top:772px;width:380px;height:32px;border-radius:8px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:-2px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:50px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:108px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:170px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:230px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:290px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Tab" style="left:350px;top:494px;width:52px;height:40px;border-radius:10px;"></div>
+    <div class="hot back" style="left:0;top:48px;width:64px;height:50px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Place_마포한강_연결 (채팅 장소 카드의 '길 찾기') -->
+  <div class="layer push shop" id="scr-mapolink">
+   <div class="inner">
+    <img class="abs" src="__img_mapo_link__" style="left:0;top:0;width:402px;height:874px" alt="Mangwon Hangang Park">
+    <div class="sb light" data-fx="toggle" data-on="Saved to My Places" data-off="Removed from My Places" role="button" aria-label="Save" style="--s:30px;left:302px;top:62px;width:44px;height:44px;"><svg class="ic" viewBox="0 0 30 30"><rect x="-2" y="-2" width="34" height="34" fill="#fff"/><path fill="#FFC21A" stroke="#FFC21A" stroke-width="2" stroke-linejoin="round" d="M15 3.6l3.4 7.2 7.8.9-5.8 5.3 1.6 7.8L15 20.9l-7 3.9 1.6-7.8-5.8-5.3 7.8-.9z"/></svg></div>
+    <div class="hot back" style="left:350px;top:62px;width:46px;height:46px" aria-label="Close"></div>
+    <div class="hot back" style="left:0;top:62px;width:56px;height:46px" aria-label="Back"></div>
+    <div class="sb light" data-fx="toast" data-msg="Set as starting point" role="button" aria-label="From" style="left:14px;top:185px;width:70px;height:38px;border-radius:19px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Starting directions to Mangwon Hangang Park" role="button" aria-label="To" style="left:87px;top:185px;width:68px;height:38px;border-radius:19px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Place link copied" role="button" aria-label="Share" style="left:159px;top:185px;width:72px;height:38px;border-radius:19px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Calls aren’t available in this demo" role="button" aria-label="Call" style="left:235px;top:185px;width:72px;height:38px;border-radius:19px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Home" style="left:8px;top:470px;width:62px;height:42px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Reviews" style="left:88px;top:470px;width:64px;height:42px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Photos" style="left:168px;top:470px;width:64px;height:42px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Nearby" style="left:248px;top:470px;width:64px;height:42px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Info" style="left:328px;top:470px;width:64px;height:42px;border-radius:10px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Maps aren’t available in this demo" role="button" aria-label="Map" style="left:36px;top:550px;width:36px;height:24px;border-radius:6px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Street view isn’t available in this demo" role="button" aria-label="Street view" style="left:76px;top:550px;width:48px;height:24px;border-radius:6px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Phone number copied" role="button" aria-label="Copy" style="left:140px;top:584px;width:34px;height:26px;border-radius:6px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Websites aren’t available in this demo" role="button" aria-label="Website" style="left:36px;top:620px;width:350px;height:26px;border-radius:6px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Showing all details" role="button" aria-label="More info" style="left:140px;top:695px;width:122px;height:36px;border-radius:18px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Permissions aren’t available in this demo" role="button" aria-label="Get permission" style="left:94px;top:802px;width:64px;height:22px;border-radius:6px;"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Music_연결 -->
+  <div class="layer push" id="scr-musiclink">
+   <div class="inner">
+    <img class="abs" src="__img_music_link__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div class="sb" data-fx="toggle" data-on="Now playing · SOS" data-off="Paused" role="button" aria-label="Play" style="--s:50px;left:331px;top:434px;width:50px;height:50px;"><svg class="ic" viewBox="0 0 50 50"><circle cx="25" cy="25" r="25" fill="#1ed760"/><rect x="17" y="15" width="5.5" height="20" rx="1.2" fill="#000"/><rect x="27.5" y="15" width="5.5" height="20" rx="1.2" fill="#000"/></svg></div>
+    <div class="sb" data-fx="toggle" role="button" aria-label="Play/Pause" style="--s:30px;left:339px;top:726px;width:40px;height:40px;"><svg class="ic" viewBox="0 0 30 30"><rect x="-3" y="-3" width="36" height="36" fill="#061823"/><path d="M9 5.5v19l16-9.5z" fill="#fff"/></svg></div>
+    <div class="sb" data-fx="toast" data-msg="Shuffle is on" role="button" aria-label="Shuffle" style="left:280px;top:439px;width:40px;height:40px;"></div>
+    <div class="sb" data-fx="toast" data-msg="Added to Your Library" role="button" aria-label="Add" style="left:66px;top:439px;width:40px;height:40px;"></div>
+    <div class="sb" data-fx="toast" data-msg="Downloads are available with Premium" role="button" aria-label="Download" style="left:116px;top:439px;width:40px;height:40px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="More" style="left:166px;top:439px;width:40px;height:40px;"></div>
+    <div class="sb" data-fx="toast" data-msg="Added to Liked Songs" role="button" aria-label="Add" style="left:296px;top:726px;width:40px;height:40px;"></div>
+    <div class="sb" data-fx="toast" data-msg="Looking for devices to connect" role="button" aria-label="Devices" style="left:248px;top:726px;width:40px;height:40px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="SOS" style="left:6px;top:512px;width:390px;height:48px;border-radius:10px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Kill Bill" style="left:6px;top:576px;width:390px;height:48px;border-radius:10px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Seek & Destroy" style="left:6px;top:642px;width:390px;height:48px;border-radius:10px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Menu" style="left:7px;top:781px;width:58px;height:58px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Menu" style="left:87px;top:781px;width:58px;height:58px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Menu" style="left:167px;top:781px;width:58px;height:58px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Menu" style="left:247px;top:781px;width:58px;height:58px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Menu" style="left:327px;top:781px;width:58px;height:58px;"></div>
+    <div class="hot back" style="left:0;top:48px;width:64px;height:50px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 오늘행운담기_버튼: 카메라 (아래에서 올라오는 모달) -->
+  <div class="layer push" id="scr-cam">
+   <div class="inner">
+    <img class="abs" src="__img_n_cam_base__" style="left:0;top:0;width:402px;height:874px" alt="Save Today’s Luck · House of Vinyl Yeonnam">
+    <div class="abs" id="vf">
+      <img id="vfPhoto" src="__img_n_cam_photo__" alt="">
+      <div id="vfFlash"></div>
+    </div>
+    <img class="abs" src="__img_n_cam_chip__" style="left:178px;top:588px;width:46px;height:46px" alt="1x">
+    <div id="zoomChip">2x</div>
+    <div class="sb" data-fx="zoom" role="button" aria-label="Zoom" style="left:176px;top:586px;width:50px;height:50px;"></div>
+    <div class="sb" data-fx="toast" data-msg="Picking from your album is coming soon" role="button" aria-label="Album" style="left:54px;top:681px;width:52px;height:52px;"></div>
+    <div class="sb" data-fx="toast" data-msg="Camera switching is coming soon" role="button" aria-label="Switch camera" style="left:285px;top:681px;width:52px;height:52px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="House of Vinyl Yeonnam" style="left:100px;top:128px;width:202px;height:44px;"></div>
+    <div class="abs" id="shutter" role="button" aria-label="Take photo"><i></i></div>
+    <div class="hot" id="captureBtn" style="left:14px;top:778px;width:374px;height:70px;border-radius:35px" aria-label="Save Luck"></div>
+    <div class="hot back" style="left:0;top:56px;width:64px;height:50px" aria-label="Close"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 오늘 행운 담기_참 -->
+  <div class="layer push fade" id="scr-charm" data-kind="fade">
+   <div class="inner">
+    <img class="abs" src="__img_n_charm_bg__" style="left:0;top:0;width:402px;height:874px" alt="Place verified! Today’s Place Charm">
+    <!-- 아래 초록 빛: 참이 나타날 때 아래에서 차오르고, 숨 쉬듯 출렁임 (시안의 고정 빛을 덮고 움직이는 빛으로) -->
+    <div class="abs" id="charmGlow"><i class="cg-base"></i><i class="cg-a"></i><i class="cg-b"></i><i class="cg-c"></i></div>
+    <div class="abs" id="charmStage">
+      <div id="charm">
+        <img src="__img_n_charm__" alt="Today’s Place Charm">
+        <i class="sheen" id="charmSheen"></i>
+        <i class="spark" style="left:57px;top:86px"></i>
+      </div>
+    </div>
+    <img class="abs press" id="charmOk" src="__img_n_charm_btn__" style="left:14px;top:778px;width:374px;height:68px;cursor:pointer" role="button" alt="Got it">
+    <div class="hot back" style="left:16px;top:58px;width:56px;height:50px" aria-label="Close"></div>
+   </div>
+  </div>
+
+
+  <!-- 오늘의 행운 담기 (결과) -->
+  <div class="layer push fade" id="scr-result" data-kind="fade">
+   <div class="inner">
+    <img class="abs" src="__img_n_result_base__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <img class="abs c-in" src="__img_n_res_title__" style="left:14px;top:135px;width:374px;height:85px;transition-delay:.15s" alt="Your Water energy is fully charged">
+    <img class="abs c-in" src="__img_n_res_trio__" style="left:0;top:245px;width:402px;height:225px;transition-delay:.35s" alt="">
+    <img class="abs c-in" src="__img_n_res_sub__" style="left:60px;top:505px;width:282px;height:75px;transition-delay:.6s" alt="Today’s Luck, Verified">
+    <img class="abs c-in tile" src="__img_n_res_tiles__" style="left:14px;top:620px;width:374px;height:125px;transition-delay:.75s" alt="Calm · Flow · Balance">
+    <img class="abs c-in press" id="resultOk" src="__img_n_res_btn__" style="left:14px;top:778px;width:374px;height:68px;transition-delay:.95s;cursor:pointer" role="button" alt="Got it">
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 오늘의 행운 담기_확인버튼: 모은 사진이 곡면 위로 펼쳐짐 -->
+  <div class="layer push" id="scr-collect">
+   <div class="inner">
+    <div id="pano"><div id="panoRing"></div></div>
+    <img class="abs" src="__img_c_head__" style="left:0;top:0;width:402px;height:206px" alt="All your luck for today, in one place">
+    <img class="abs c-in press" id="collectOk" src="__img_c_btn__" style="left:14px;top:776px;width:374px;height:72px;transition-delay:1.3s;cursor:pointer" role="button" alt="Got it">
+    <img class="abs" src="__img_c_bar__" style="left:120px;top:848px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:64px;height:50px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 저녁: 오늘의 행운이 이만큼 모였어요 → 키링 (이전 프로토타입) -->
+  <div class="layer push fade" id="scr-evening" data-kind="fade">
+    <div class="ev-status">
+      <span>9:41</span>
+      <span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12" fill="#fff"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><path d="M8 2.6c2.3 0 4.4.9 6 2.4l1.2-1.2A10.2 10.2 0 0 0 8 .9 10.2 10.2 0 0 0 .8 3.8L2 5c1.6-1.5 3.7-2.4 6-2.4Zm0 3.4c1.4 0 2.6.5 3.6 1.4l1.2-1.2A6.8 6.8 0 0 0 8 4.3a6.8 6.8 0 0 0-4.8 1.9l1.2 1.2C5.4 6.5 6.6 6 8 6Zm0 3.3c-.6 0-1.1.2-1.4.6L8 11.3l1.4-1.4c-.3-.4-.8-.6-1.4-.6Z"/></svg>
+        <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="#fff" opacity=".4"/><rect x="2" y="2" width="20" height="9" rx="2" fill="#fff"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2Z" fill="#fff" opacity=".4"/></svg>
+      </span>
+    </div>
+    <h1 class="ev-title" id="ev-t1"><span>Look how much luck</span><span>you’ve collected today</span></h1>
+    <h1 class="ev-title" id="ev-t2"><span>Your lucky keyring</span><span>is ready!</span></h1>
+    <div id="ev-stage"></div>
+    <div class="ev-keyring" id="ev-keyring"></div>
+    <div class="ev-btns" id="evBtns"></div>
+    <div id="evFinal">
+      <img class="abs" id="evKeyBg" src="__img_n_key_bg__" style="left:0;top:0;width:402px;height:874px" alt="">
+      <img class="abs" id="evKeyTitle" src="__img_n_key_title__" style="left:14px;top:108px;width:316px;height:88px" alt="Your lucky keyring is ready!">
+      <img class="abs" id="evKey" src="__img_n_key__" style="left:60px;top:262px;width:342px;height:508px" alt="Your lucky keyring">
+      <img class="abs" id="evKeyBtns" src="__img_n_key_btns__" style="left:14px;top:778px;width:374px;height:70px" alt="Share · Go Home">
+      <div class="hot" id="evShare" style="left:20px;top:784px;width:176px;height:58px;border-radius:29px" aria-label="Share"></div>
+      <div class="hot" id="evHome" style="left:206px;top:784px;width:176px;height:58px;border-radius:29px" aria-label="Go Home"></div>
+    </div>
+    <div class="ev-home"></div>
+  </div>
+
+  <!-- 행운 공구방: 운세 겹쳐보기 -->
+  <div class="layer push" id="scr-chat">
+   <div class="inner">
+    <img class="abs" src="__img_n_chat_bg__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div id="chMsgs">
+      <div class="ch-spacer"></div>
+      <div class="ch-thread" id="chThread">
+        <div class="thread-b">
+        <img src="__img_n_chat_msgs__" style="left:0;top:0;width:402px;height:500px" alt="dayun: guys tmrw’s weather 🔥 / sumin: wait lemme ask the app lol">
+        <div class="hot" id="mixBubble" role="button" aria-label="Tap to see our shared luck" style="left:66px;top:383px;width:244px;height:96px;border-radius:22px"></div>
+        <img class="nm" src="__img_n_chat_new0__" style="left:0;top:506px;width:402px;height:48px" alt="">
+        <img class="nm" src="__img_n_chat_new1__" style="left:0;top:554px;width:402px;height:148px" alt="">
+        <div class="hot" id="chRoute" role="button" aria-label="Directions" style="left:255px;top:654px;width:116px;height:36px;border-radius:18px"></div>
+        <img class="nm" src="__img_n_chat_new2__" style="left:0;top:702px;width:402px;height:54px" alt="">
+        <img class="nm" src="__img_n_chat_new3__" style="left:0;top:760px;width:402px;height:66px" alt="">
+        <img class="nm" src="__img_n_chat_new4__" style="left:0;top:828px;width:402px;height:64px" alt="">
+        <img class="nm" src="__img_n_chat_new5__" style="left:0;top:892px;width:402px;height:56px" alt="">
+        </div>
+        <img class="thread-a" id="threadA" src="__img_n_chat_a__" style="left:0;top:500px;width:402px;height:485px" alt="Dayun: omg Sumin has an exam and got #1 luck / Sumin: yesss my luck is insane">
+      </div>
+    </div>
+    <img class="abs" src="__img_n_chat_head__" style="left:0;top:0;width:402px;height:190px" alt="Lucky Squad 3">
+    <div id="rkPanel"><img src="__img_n_rank_panel__" alt="Ranking: Sumin 1, Dayun 2, Yujin 3"></div>
+    <img class="abs" src="__img_n_chat_input__" style="left:0;top:760px;width:402px;height:114px" alt="Leave a message">
+    <img class="abs" id="chInEmpty" src="__img_n_chat_input_empty__" style="left:0;top:760px;width:402px;height:114px" alt="">
+    <input id="chIn" type="text" autocomplete="off" enterkeyhint="send" aria-label="Leave a message" maxlength="60">
+    <div id="chSend" role="button" aria-label="Send"></div>
+    <div class="hot to-freq" role="button" aria-label="Send Energy" style="left:20px;top:134px;width:106px;height:40px;border-radius:20px"></div>
+    <div class="hot" id="chChip" role="button" aria-label="Luck Ranking" style="left:132px;top:134px;width:110px;height:40px;border-radius:20px"></div>
+    <div class="hot" id="chMixChip" role="button" aria-label="Luck Overlap" style="left:246px;top:134px;width:108px;height:40px;border-radius:20px"></div>
+    <div class="hot back" style="left:16px;top:58px;width:56px;height:50px" aria-label="Back"></div>
+
+    <!-- 운세 순위 비교_딤0(제목만) → 딤1(1등 발표): 제목이 위로 올라가고 1등 카드·이모지가 나타남 -->
+    <div id="rkDim" class="dim">
+      <img class="abs" src="__img_n_rk_bg0__" style="left:0;top:0;width:402px;height:874px" alt="">
+      <img class="abs" id="rkBg1" src="__img_n_rk_bg1__" style="left:0;top:0;width:402px;height:874px" alt="">
+      <img class="abs" id="rkTitle" src="__img_n_rk_title__" style="left:60px;top:324px;width:282px;height:100px;" alt="Lucky Squad · Today’s lucky one?">
+      <img class="abs" id="rkCard" src="__img_n_rk_card__" style="left:70px;top:266px;width:260px;height:434px;" alt="#1 Sumin · 2 Dayun · 3 Yujin">
+      <img class="abs drop" src="__img_n_rk_fire__" style="left:230px;top:66px;width:62px;height:66px;--y:-170px;--r:-28deg;--dl:.05s" alt="">
+      <img class="abs drop" src="__img_n_rk_gem__" style="left:32px;top:130px;width:68px;height:60px;--y:-230px;--r:24deg;--dl:.1s" alt="">
+      <img class="abs drop" src="__img_n_rk_leaf2__" style="left:326px;top:330px;width:64px;height:72px;--y:-420px;--r:30deg;--dl:.15s" alt="">
+      <div class="hot" id="rkOk" style="left:20px;top:783px;width:178px;height:56px;border-radius:28px" aria-label="Got it"></div>
+      <div class="hot to-freq" id="rkGift" style="left:206px;top:783px;width:176px;height:56px;border-radius:28px" aria-label="Send Energy"></div>
+    </div>
+
+    <!-- 운세 겹쳐보기_딤1(물음표 카드) → 자동으로 세 장이 펼쳐짐(딤2) -->
+    <div id="mxDim" class="dim">
+      <img class="abs" src="__img_n_mix_bg__" style="left:0;top:0;width:402px;height:874px" alt="">
+      <img class="abs pop mx-intro" src="__img_n_mix_title__" style="left:90px;top:140px;width:222px;height:145px;transition-delay:.08s" alt="Luck Overlap · What energy do we need today?">
+      <img class="abs pop mx-intro" id="mxStack" src="__img_n_mix_stack__" style="left:70px;top:320px;width:275px;height:360px;transition-delay:.18s" role="button" alt="Overlapping cards">
+      <img class="abs mxc2" id="mxItem" src="__img_n_mix_item__" style="left:30px;top:80px;width:242px;height:232px;--tx:60.5px;--ty:253.6px;--r:-2.8deg;--s:1.1385" role="button" alt="Lucky Item">
+      <img class="abs mxf" id="mxItemF" src="__img_n_mix_face_item__" style="left:30px;top:80px;width:242px;height:232px;--tx:60.5px;--ty:253.6px;--r:-2.8deg;--s:1.1385" alt="">
+      <img class="abs mxc2" id="mxPlace" src="__img_n_mix_place__" style="left:160px;top:228px;width:240px;height:254px;--tx:-62.1px;--ty:202.5px;--r:-22.8deg;--s:1.1384" role="button" alt="Lucky Place">
+      <img class="abs mxf" id="mxPlaceF" src="__img_n_mix_face_place__" style="left:160px;top:228px;width:240px;height:254px;--tx:-62.1px;--ty:202.5px;--r:-22.8deg;--s:1.1384" alt="">
+      <img class="abs mxc2" id="mxMusic" src="__img_n_mix_music__" style="left:70px;top:448px;width:230px;height:254px;--tx:54.6px;--ty:-87.3px;--r:42.7deg;--s:1.1381" role="button" alt="Lucky Music">
+      <img class="abs mxf" id="mxMusicF" src="__img_n_mix_face_music__" style="left:70px;top:448px;width:230px;height:254px;--tx:54.6px;--ty:-87.3px;--r:42.7deg;--s:1.1381" alt="">
+      <img class="abs mx-after" src="__img_n_mix_caption__" style="left:80px;top:730px;width:242px;height:35px" alt="Tap a card to see more">
+      <img class="abs mx-after press" src="__img_n_mix_ok__" id="mxOkImg" style="left:14px;top:778px;width:190px;height:68px;cursor:pointer" alt="Got it">
+      <img class="abs mx-after press" src="__img_n_mix_share__" style="left:204px;top:778px;width:184px;height:68px;cursor:pointer" alt="Share Results">
+      <div class="sb mx-sb" data-fx="toast" data-msg="Overlap results saved" role="button" aria-label="Share Results" style="left:206px;top:780px;width:180px;height:64px;"></div>
+      <div class="hot" id="mxOk" style="left:16px;top:780px;width:186px;height:64px" aria-label="Got it"></div>
+    </div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- 운세겹쳐보기_오늘의 행운 아이템 연결 (Beige Muffler) -->
+  <div class="layer push" id="scr-mixitem">
+   <div class="inner">
+    <img class="abs d-in d-hero" src="__img_n_mxi_hero__" style="left:0;top:112px;width:402px;height:393px" alt="Today’s Lucky Item · Beige Muffler">
+    <img class="abs" src="__img_n_mxi_head__" style="left:0;top:0;width:402px;height:112px" alt="">
+    <img class="abs d-in d-body" src="__img_n_mxi_body__" style="left:20px;top:505px;width:362px;height:65px" alt="">
+    <img class="abs d-in d-icons" src="__img_n_mxi_icons__" style="left:14px;top:605px;width:374px;height:140px" alt="Stability UP · Calm Day · Earth Vibe">
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:20px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:144px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:267px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="abs d-in d-btn" style="left:14px;top:776px;width:374px;height:70px">
+      <img class="abs press mx-ok" role="button" src="__img_n_mxi_ok__" style="left:0;top:0;width:188px;height:70px;cursor:pointer" alt="Got it">
+      <img class="abs press mx-share" id="mxiShare" role="button" src="__img_n_mxi_share__" style="left:188px;top:0;width:186px;height:70px;cursor:pointer" alt="Share Item">
+    </div>
+    <img class="abs" src="__img_n_mxi_bar__" style="left:120px;top:850px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:72px;height:48px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+  <!-- 운세겹쳐보기_오늘의 행운 플리 연결 (Freudian) -->
+  <div class="layer push" id="scr-mixmusic">
+   <div class="inner">
+    <img class="abs d-in d-hero" src="__img_n_mxm_hero__" style="left:0;top:112px;width:402px;height:393px" alt="Today’s Lucky Playlist · Freudian">
+    <img class="abs" src="__img_n_mxm_head__" style="left:0;top:0;width:402px;height:112px" alt="">
+    <img class="abs d-in d-body" src="__img_n_mxm_body__" style="left:20px;top:505px;width:362px;height:65px" alt="">
+    <img class="abs d-in d-icons" src="__img_n_mxm_icons__" style="left:14px;top:605px;width:374px;height:140px" alt="Focus UP · Calm Mind · Water Vibe">
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:20px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:144px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:267px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="abs d-in d-btn" style="left:14px;top:776px;width:374px;height:70px">
+      <img class="abs press mx-ok" role="button" src="__img_n_mxm_ok__" style="left:0;top:0;width:188px;height:70px;cursor:pointer" alt="Got it">
+      <img class="abs press mx-share" id="mxmShare" role="button" src="__img_n_mxm_share__" style="left:188px;top:0;width:186px;height:70px;cursor:pointer" alt="Share Playlist">
+    </div>
+    <img class="abs" src="__img_n_mxm_bar__" style="left:120px;top:850px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:72px;height:48px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+  <!-- 운세겹쳐보기_오늘의 행운 장소 연결 (Mapo River) -->
+  <div class="layer push" id="scr-mixplace">
+   <div class="inner">
+    <img class="abs d-in d-hero" src="__img_n_mapo_hero__" style="left:0;top:112px;width:402px;height:393px" alt="Mapo River">
+    <img class="abs" src="__img_n_mapo_head__" style="left:0;top:0;width:402px;height:112px" alt="Today’s Lucky Place">
+    <img class="abs d-in d-body" src="__img_n_mapo_body__" style="left:20px;top:505px;width:362px;height:65px" alt="">
+    <img class="abs d-in d-icons" src="__img_n_mapo_icons__" style="left:14px;top:605px;width:374px;height:140px" alt="Confidence UP · Easygoing · Wood Vibe">
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:20px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:144px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="sb" data-fx="tap" role="button" aria-label="Energy" style="left:267px;top:616px;width:115px;height:115px;border-radius:24px;"></div>
+    <div class="abs d-in d-btn" style="left:14px;top:776px;width:374px;height:70px">
+      <img class="abs press" id="mpOk" role="button" src="__img_n_mapo_ok__" style="left:0;top:0;width:188px;height:70px;cursor:pointer" alt="Got it">
+      <img class="abs press" id="shareToChat" role="button" src="__img_n_mapo_share__" style="left:188px;top:0;width:186px;height:70px;cursor:pointer" alt="Share Place">
+    </div>
+    <img class="abs" src="__img_n_mapo_bar__" style="left:120px;top:850px;width:162px;height:24px" alt="">
+    <div class="hot back" style="left:0;top:56px;width:72px;height:48px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Item_연결1: 양산 검색 결과 -->
+  <div class="layer push shop" id="scr-shop1">
+   <div class="inner">
+    <img class="abs" src="__img_shop1__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div class="hot back" style="left:0;top:60px;width:64px;height:52px" aria-label="Back"></div>
+    <div class="hot" data-next="shop2" style="left:0;top:186px;width:402px;height:592px" aria-label="View product"></div>
+    <div class="sb" data-fx="heart" data-on="Added to Wishlist" data-off="Removed from Wishlist" role="button" aria-label="Wishlist" style="--s:18px;left:120px;top:309px;width:32px;height:32px;"><svg class="ic" viewBox="0 0 24 24"><path fill="#ff4f74" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.2 0 3.7 1.2 5.3 3 1.6-1.8 3.1-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg></div>
+    <div class="sb" data-fx="heart" data-on="Added to Wishlist" data-off="Removed from Wishlist" role="button" aria-label="Wishlist" style="--s:18px;left:120px;top:524px;width:32px;height:32px;"><svg class="ic" viewBox="0 0 24 24"><path fill="#ff4f74" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.2 0 3.7 1.2 5.3 3 1.6-1.8 3.1-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg></div>
+    <div class="sb" data-fx="heart" data-on="Added to Wishlist" data-off="Removed from Wishlist" role="button" aria-label="Wishlist" style="--s:18px;left:120px;top:741px;width:32px;height:32px;"><svg class="ic" viewBox="0 0 24 24"><path fill="#ff4f74" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.2 0 3.7 1.2 5.3 3 1.6-1.8 3.1-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg></div>
+    <div class="sb light" data-fx="toast" data-msg="The cart isn’t available in this demo" role="button" aria-label="Cart" style="left:346px;top:65px;width:40px;height:40px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Clear" style="left:270px;top:68px;width:34px;height:34px;"></div>
+    <div class="sb light" data-fx="top" role="button" aria-label="Back to top" style="left:342px;top:722px;width:40px;height:40px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Menu" style="left:4px;top:780px;width:56px;height:56px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Menu" style="left:82px;top:780px;width:56px;height:56px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Menu" style="left:160px;top:780px;width:56px;height:56px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Menu" style="left:238px;top:780px;width:56px;height:56px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Menu" style="left:322px;top:780px;width:56px;height:56px;"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <!-- Lucky Item_연결2: 상품 상세 -->
+  <div class="layer push shop" id="scr-shop2">
+   <div class="inner">
+    <img class="abs" src="__img_shop2__" style="left:0;top:0;width:402px;height:874px" alt="">
+    <div class="sb light" data-fx="heart" data-on="Added to Wishlist" data-off="Removed from Wishlist" role="button" aria-label="Wishlist" style="--s:20px;left:344px;top:664px;width:36px;height:36px;"><svg class="ic" viewBox="0 0 24 24"><path fill="#ff4f74" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.2 0 3.7 1.2 5.3 3 1.6-1.8 3.1-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg></div>
+    <div class="sb light" data-fx="toast" data-msg="Product link copied" role="button" aria-label="Share" style="left:344px;top:710px;width:36px;height:36px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Search" style="left:263px;top:55px;width:38px;height:38px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="You have 3 items in your cart" role="button" aria-label="Cart" style="left:303px;top:55px;width:38px;height:38px;"></div>
+    <div class="sb light" data-fx="tap" role="button" aria-label="Menu" style="left:345px;top:55px;width:38px;height:38px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Store alerts turned on" role="button" aria-label="Get alerts" style="left:320px;top:108px;width:80px;height:30px;border-radius:8px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="Gifting is coming soon" role="button" aria-label="Gift" style="left:10px;top:774px;width:50px;height:50px;border-radius:12px;"></div>
+    <div class="sb light" data-fx="toast" data-msg="No real purchases in this demo" role="button" aria-label="Buy" style="left:68px;top:774px;width:326px;height:50px;border-radius:12px;"></div>
+    <div class="hot back" style="left:0;top:50px;width:64px;height:50px" aria-label="Back"></div>
+   </div>
+   <div class="shade"></div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+ </div>
+</div>
+<div class="replay-wrap"><button class="replay" id="replayKey">View Keyring</button><button class="replay" id="replayFortune">Replay from Fortune</button><button class="replay" id="replay">↻ Start Over</button></div>
+
+<script>
+const phone = document.getElementById("phone");
+const scaler = document.getElementById("scaler");
+// 폰 프레임은 절대 스크롤되지 않게 (안쪽 요소가 넘쳐도 화면이 밀리지 않음)
+[phone, document.getElementById("scaler")].forEach(el => el.addEventListener("scroll", () => { if (el.scrollTop || el.scrollLeft) { el.scrollTop = 0; el.scrollLeft = 0; } }));
+// 휴대폰(터치 + 좁은 화면)에서 열면 모바일 보기
+const MOB = (matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0) && Math.min(window.screen.width, window.screen.height) <= 500;
+document.documentElement.classList.toggle("mob", MOB);
+const safeProbe = document.createElement("div"); safeProbe.id = "safeProbe"; document.body.appendChild(safeProbe);
+// ── 모바일 화면 맞춤 + 키보드 ─────────────
+// 키보드가 올라와도 화면 크기는 그대로 두고 자판만 아래에서 덮듯 올라오게 (실제 앱처럼).
+// 입력 칸이 자판에 가려질 때만, 가려지지 않을 만큼만 화면을 위로 살짝 올림. iOS가 페이지를 스스로 밀어 올리는 것(visualViewport.offsetTop)은 되돌림.
+// 입력 칸은 이 페이지에도, 기운 충전(팀원 앱 iframe) 안에도 있음 → 둘 다 확인
+let base = null, kbShift = 0;
+function focusedField() {
+  const isField = el => el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+  let el = document.activeElement;
+  if (el && el.tagName === "IFRAME") {
+    try { const inner = el.contentDocument && el.contentDocument.activeElement; if (isField(inner)) return { el: inner, frame: el }; } catch (e) {}
+    return null;
+  }
+  return isField(el) ? { el, frame: null } : null;
+}
+const MOB_H = 827;                   // 모바일 화면 높이: 시안 874에서 가짜 상태바(위 47px)만 잘라 냄. 아래 여백(홈 막대 자리 24px)은 데스크톱처럼 그대로
+function layoutBase() {             // 키보드가 없을 때의 배율·위치
+  const cs = getComputedStyle(safeProbe), st = parseFloat(cs.paddingTop) || 0, sb = parseFloat(cs.paddingBottom) || 0;
+  const vw = document.documentElement.clientWidth || innerWidth;
+  const vh = window.visualViewport ? visualViewport.height : innerHeight;
+  let availH = vh - st - sb;
+  const sW = vw / 402;
+  const card = sW - availH / MOB_H > .012;          // 세로가 모자라 양옆이 남는 경우 → 위쪽만 둥근 카드 (위 6px 여유)
+  if (card) availH -= 6;
+  const s = Math.min(sW, availH / MOB_H);
+  // 화면 아래 끝에 딱 붙임 (하단 내비가 화면 바닥까지 이어지게). 남는 세로 공간은 위쪽(상태 표시줄 쪽)으로
+  return { s, card, x: (vw - 402 * s) / 2, y: st + (card ? 6 : 0) + Math.max(0, availH - MOB_H * s), vh, vw };
+}
+function applyPhone(b, shift, offTop) {
+  phone.style.transform = `translate(${b.x.toFixed(2)}px,${(b.y - shift + offTop).toFixed(2)}px) scale(${b.s})`;
+}
+// 자판이 오르내리는 동안(입력 칸을 누르고 있을 때 + 포커스가 빠진 직후 자판이 내려가는 동안)에는 보이는 높이가 줄어도 화면 배율을 다시 계산하지 않음
+// (예전에는 줄어든 높이로 다시 맞춰서, 자판을 닫는 순간 화면 전체가 작아졌다가 돌아오는 오류가 있었음)
+let kbUntil = 0;
+function kbClosing() { if (!MOB) return; kbUntil = performance.now() + 900; setTimeout(fit, 950); }
+function fit() {   // 비율을 유지한 채 창 안에 맞춤
+  if (MOB) {
+    const vv = window.visualViewport, f = focusedField();
+    const offTop = vv ? vv.offsetTop : 0;
+    const vh = vv ? vv.height : innerHeight, vw = document.documentElement.clientWidth || innerWidth;
+    if (base && Math.abs(vw - base.vw) < 2 && vh < base.vh - .5 && (f || performance.now() < kbUntil)) {
+      if (!(f && vh < base.vh - 80)) {               // 자판이 아직 덜 올라왔거나 내려가는 중: 크기 그대로
+        // 올라가 있던 화면은 내려가는 자판을 따라 같이 내려옴 (한 번에 툭 떨어지지 않게)
+        kbShift = f ? 0 : Math.min(kbShift, Math.max(0, base.y + MOB_H * base.s - vh));
+        document.documentElement.classList.toggle("kb-open", kbShift > 0);
+        applyPhone(base, kbShift, offTop);
+        return;
+      }
+    }
+    if (f && base && vv && vv.height < base.vh - 80) {
+      // 키보드가 올라온 상태: 배율·크기는 그대로. 입력 칸 아래가 자판 위 12px 안에 들어오도록만 올림
+      const r = f.el.getBoundingClientRect();
+      let bottom = r.bottom;                         // 입력 칸 아래 끝 (화면 기준)
+      if (f.frame) { const fr = f.frame.getBoundingClientRect(); bottom = fr.top + r.bottom * base.s; }
+      const fieldInPhone = bottom - phone.getBoundingClientRect().top;   // 폰 윗변에서 입력 칸 아래까지 (올린 정도와 무관)
+      // 입력 칸 아래가 '자판 위 12px'보다 내려가 있으면 그만큼만 올림. 단, 폰 아래 끝이 자판 위로 떠오르지는 않게
+      kbShift = Math.max(0, Math.min(base.y + fieldInPhone - (vv.height - 12), base.y + MOB_H * base.s - vv.height));
+      document.documentElement.classList.add("kb-open");
+      applyPhone(base, kbShift, offTop);
+      return;
+    }
+    kbShift = 0; document.documentElement.classList.remove("kb-open");
+    base = layoutBase();
+    document.documentElement.classList.toggle("mob-card", base.card);
+    applyPhone(base, 0, offTop);
+    // 둥근 모서리는 위쪽 두 곳만 (하단 내비 아래쪽은 각지게, 시안처럼)
+    const R = base.card ? (22 / base.s).toFixed(1) + "px" : "0px";
+    phone.style.borderRadius = `${R} ${R} 0 0`;
+    // 소수 배율로 줄이면 겹친 화면들의 가장자리 1픽셀이 반투명하게 그려져 아래 화면이 가는 선처럼 비침 → 좌·우·위는 1px 안쪽에서 잘라 냄 (아래는 화면 끝에 붙어 있어 그대로)
+    const e1 = (1 / base.s).toFixed(2);
+    phone.style.clipPath = `inset(${e1}px ${e1}px 0 ${e1}px round ${R} ${R} 0 0)`;
+    phone.style.marginBottom = "";
+    return;
+  }
+  const s = Math.min(1, innerWidth / 402, innerHeight / 874);
+  phone.style.transform = `scale(${s})`;
+}
+addEventListener("resize", fit); addEventListener("orientationchange", () => setTimeout(() => { base = null; fit(); }, 250));
+if (window.visualViewport) { visualViewport.addEventListener("resize", fit); visualViewport.addEventListener("scroll", fit); }
+// iOS가 입력 칸으로 페이지를 스크롤해 올리면 즉시 원래 자리로 (화면은 위 fit이 필요한 만큼만 올림)
+addEventListener("scroll", () => { if (MOB && (scrollX || scrollY)) scrollTo(0, 0); }, { passive: true });
+function onFocusChange() { if (!MOB) return; scrollTo(0, 0); fit(); [120, 320, 600].forEach(t => setTimeout(fit, t)); }
+addEventListener("focusin", onFocusChange); addEventListener("focusout", () => { kbClosing(); setTimeout(onFocusChange, 60); });
+// 기운 충전(iframe) 안의 입력 칸도 같은 방식으로
+function hookFreqFocus() {
+  try {
+    const d = document.getElementById("freqFrame").contentDocument; if (!d || d.__focusHooked || !/chiring/.test(d.URL)) return; d.__focusHooked = true;
+    d.addEventListener("focusin", onFocusChange); d.addEventListener("focusout", () => { kbClosing(); setTimeout(onFocusChange, 60); });
+    d.addEventListener("input", () => { if (MOB) fit(); });   // 여러 줄로 늘어나면 따라 올림
+  } catch (err) {}
+}
+// ── 모바일: 화면 왼쪽 끝에서 오른쪽으로 쓸면 이전 화면 (iOS 뒤로 가기 제스처처럼)
+// 지금 보이는 화면의 왼쪽 위 '뒤로/닫기' 버튼을 그대로 눌러 줌 → 화면마다 원래 뒤로 동작이 그대로 실행됨.
+// 이 페이지의 밀어 들어온 화면은 손가락을 따라 오른쪽으로 밀리고, 아래 화면이 함께 제자리로 돌아오며 보임. 팀원 앱(아이프레임)은 손을 뗄 때 뒤로.
+const EDGE = 24;
+function backTargetAt(doc, x, y) {
+  const el = doc.elementFromPoint(x, y); if (!el) return null;
+  if (el.tagName === "IFRAME") {
+    try { const r = el.getBoundingClientRect(), k = r.width / el.offsetWidth; return backTargetAt(el.contentDocument, (x - r.left) / k, (y - r.top) / k); } catch (e) { return null; }
+  }
+  const b = el.closest('.back, #stBack, [aria-label="Back"], [aria-label="Close"], button, [role="button"]'); if (!b) return null;
+  const lab = b.getAttribute("aria-label") || "", r = b.getBoundingClientRect(), dr = doc.documentElement.getBoundingClientRect();
+  const isBack = b.classList.contains("back") || b.id === "stBack" || lab === "Back" || lab === "Close" || (b.tagName === "BUTTON" && !b.textContent.trim() && r.width < 90);
+  return isBack && r.left - dr.left < 110 ? b : null;
+}
+function findBack() {   // 화면 왼쪽 위(뒤로 버튼 자리)를 몇 군데 찍어 실제로 보이는 버튼을 찾음
+  const sr = scaler.getBoundingClientRect(), s = sr.width / 402;
+  for (const y of [70, 80, 90, 60, 100, 110]) for (const x of [30, 22, 42, 54]) { const t = backTargetAt(document, sr.left + x * s, sr.top + y * s); if (t) return t; }
+  return null;
+}
+(() => {
+  let g = null;
+  const topLayer = () => phone.classList.contains("tab-freq") || stack.length < 2 ? null : screen(stack[stack.length - 1]);
+  function start(e, toPage) {
+    if (!MOB || g || busy || e.touches.length !== 1) return;
+    const t = e.touches[0], [x, y] = toPage(t.clientX, t.clientY), sr = scaler.getBoundingClientRect();
+    if (x - sr.left > EDGE) return;
+    const target = findBack(); if (!target) return;
+    const top = topLayer(), slide = top && top.classList.contains("push") && !top.classList.contains("fade") && !top.classList.contains("modal") ? top : null;
+    const under = slide && stack.length > 1 ? screen(stack[stack.length - 2]) : null;
+    g = { x0: x, y0: y, dx: 0, on: false, target, slide, under, toPage, last: [x, e.timeStamp || performance.now()], v: 0 };
+  }
+  function paint(p) {
+    const s = scaler.getBoundingClientRect().width / 402;
+    if (g.slide) { g.slide.style.transition = "none"; g.slide.style.transform = `translateX(${(g.dx / s).toFixed(1)}px)`; }
+    if (g.under) {
+      const inn = g.under.querySelector(":scope > .inner"), sh = g.under.querySelector(":scope > .shade");
+      if (inn) { inn.style.transition = "none"; inn.style.transform = `translateX(${(-28 * (1 - p)).toFixed(2)}%)`; }
+      if (sh) { sh.style.transition = "none"; sh.style.opacity = (.5 * (1 - p)).toFixed(3); }
+    }
+  }
+  function release(commit) {
+    const els = [g.slide, g.under && g.under.querySelector(":scope > .inner"), g.under && g.under.querySelector(":scope > .shade")].filter(Boolean);
+    els.forEach(el => { el.style.transition = ""; el.style.transform = ""; el.style.opacity = ""; });   // 원래 화면 이동 곡선으로 이어서 움직임
+    if (commit) g.target.click();
+  }
+  function move(e) {
+    if (!g) return;
+    const t = e.touches[0], [x, y] = g.toPage(t.clientX, t.clientY), dx = x - g.x0, dy = y - g.y0, now = e.timeStamp || performance.now();   // 손가락 속도는 터치 이벤트 자체 시각으로
+    if (!g.on) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { g = null; return; }   // 세로로 움직이면 원래 스크롤
+      if (dx < 8 || dx < Math.abs(dy) * 1.2) return;
+      g.on = true;
+    }
+    e.preventDefault();
+    g.v = (x - g.last[0]) / Math.max(1, now - g.last[1]) * .6 + g.v * .4; g.last = [x, now];
+    g.dx = Math.max(0, dx);
+    const W = scaler.getBoundingClientRect().width; paint(Math.min(1, g.dx / W));
+  }
+  function end() {
+    if (!g) return;
+    const W = scaler.getBoundingClientRect().width;
+    if (g.on) release(g.dx > W * .33 || (g.v > .45 && g.dx > 40));
+    g = null;
+  }
+  const hook = (doc, toPage) => {
+    // 왼쪽 끝에서 시작한 손길은 화면 안의 끌기(스토리 넘기기·사진 띠 돌리기 등)에 넘기지 않음 (누르기·탭은 그대로 됨)
+    doc.addEventListener("pointerdown", e => {
+      if (!MOB || e.pointerType === "mouse") return;
+      const [x] = toPage(e.clientX, e.clientY);
+      if (x - scaler.getBoundingClientRect().left <= EDGE && findBack()) e.stopPropagation();
+    }, true);
+    doc.addEventListener("touchstart", e => start(e, toPage), { passive: true });
+    doc.addEventListener("touchmove", move, { passive: false });
+    doc.addEventListener("touchend", end); doc.addEventListener("touchcancel", () => { if (g && g.on) release(false); g = null; });
+  };
+  hook(document, (x, y) => [x, y]);
+  window.hookFreqSwipe = d => {   // 아이프레임 안 좌표 → 이 페이지 좌표
+    if (d.__swipeHooked) return; d.__swipeHooked = true;
+    hook(d, (x, y) => { const r = freqFrame.getBoundingClientRect(), k = r.width / freqFrame.offsetWidth; return [r.left + x * k, r.top + y * k]; });
+  };
+})();
+function hookFreqSwipeNow() { try { const d = document.getElementById("freqFrame").contentDocument; if (d && /chiring/.test(d.URL)) window.hookFreqSwipe(d); } catch (e) {} }
+document.getElementById("freqFrame").addEventListener("load", hookFreqSwipeNow);
+document.getElementById("freqFrame").addEventListener("load", hookFreqFocus);
+try { if (document.getElementById("freqFrame").contentDocument.readyState === "complete") { hookFreqFocus(); hookFreqSwipeNow(); } } catch (e) {}   // 이미 불러온 경우
+fit();
+
+let timer;
+function go(state) {
+  if (state === "fortune" || state === "home") markFortuneSeen();   // 운세를 한 번 봤음
+  phone.classList.remove("s-clear", "s-fortune", "s-home");
+  const add = { clear: ["s-clear"], fortune: ["s-clear", "s-fortune"], home: ["s-clear", "s-fortune", "s-home"] }[state] || [];
+  phone.classList.add(...add);
+}
+// 페이지를 열 때는 항상 오늘의운세_딤1부터. 한 번 본 뒤 '처음부터'를 누르면 홈_기본에서 시작 (오늘의 운세는 하루 한 번)
+let fortuneSeen = false;
+function markFortuneSeen() { fortuneSeen = true; }
+let startSeq = 0;
+function start(forceFortune) {
+  clearTimeout(timer); const seq = ++startSeq;
+  phone.classList.add("no-anim");
+  phone.classList.remove("x-close");
+  resetNav();
+  const toHome = fortuneSeen && !forceFortune;
+  go(toHome ? "home" : "dim");
+  void phone.offsetWidth;
+  // 화면이 실제로 그려진 다음(두 프레임 뒤)에 애니메이션을 다시 켬 → 되돌아가는 모션이 보이지 않음
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (seq !== startSeq) return;
+    phone.classList.remove("no-anim");
+    // 1 → 2: 탭 없이 블러가 서서히 걷힘
+    if (!toHome) timer = setTimeout(() => go("clear"), 1100);
+  }));
+}
+
+// 2 → 3: 보러가기
+document.getElementById("dimBtn").addEventListener("click", () => {
+  if (phone.classList.contains("s-clear") && !phone.classList.contains("s-fortune")) go("fortune");
+});
+// 딤 화면의 X: 바로 홈으로
+document.getElementById("dimX").addEventListener("click", () => {
+  if (!phone.classList.contains("s-clear") || phone.classList.contains("s-fortune")) return;
+  markFortuneSeen(); clearTimeout(timer);
+  phone.classList.add("x-close", "s-fortune", "s-home");
+});
+// 3 → 4: 운세 화면 탭
+document.getElementById("fortune").addEventListener("click", () => {
+  if (phone.classList.contains("s-fortune") && !phone.classList.contains("s-home")) go("home");
+});
+// ── 하단 내비 탭: 홈 ↔ 친구방 (내 행운·주파수는 아직 화면 없음)
+let tab = "home";
+const frScroll = document.getElementById("frScroll");
+function setTab(name, instant) {
+  if (name === tab && !instant) { if (name === "friends") frScroll.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  const changed = name !== tab; tab = name;
+  const owned = instant && !phone.classList.contains("no-anim");   // 이미 바깥에서 애니메이션을 끈 상태면 건드리지 않음
+  if (owned) phone.classList.add("no-anim");
+  phone.classList.toggle("tab-friends", name === "friends");
+  if (name === "friends" && changed) frScroll.scrollTop = 0;   // 같은 탭으로 돌아올 때(스토리 보고 복귀 등)는 보던 위치 유지
+  syncNav(name);
+  if (owned) { void phone.offsetWidth; phone.classList.remove("no-anim"); }
+}
+const appNav = document.getElementById("appNav");
+function syncNav(name) {
+  appNav.querySelectorAll(".bottom-nav__item").forEach(b => {
+    const on = b.dataset.tab === name; b.classList.toggle("is-active", on);
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+}
+appNav.querySelectorAll(".bottom-nav__item").forEach(b => b.addEventListener("click", () => {
+  if (stack.length > 1 || !phone.classList.contains("s-home")) return;
+  const k = b.dataset.tab;
+  clearTimeout(freqShowT);
+  if (k === "myluck") { openFreq("myluck"); return; }   // 아카이브: 기운 충전 탭에서 누를 때와 같은 화면 (팀원 앱 안)
+  if (k === "frequency") openFreq("frequency");
+  else if (k === "home" || k === "friends") setTab(k);
+}));
+// 데스크톱에서도 마우스로 끌어서 스크롤 (터치·트랙패드·휠은 기본 스크롤). 5px 넘게 움직여야 드래그로 판단 → 탭은 그대로 동작
+function dragScroll(el, axis) {
+  let down = false, moved = false, p0 = 0, s0 = 0, v = 0, last = 0, lastT = 0, raf = 0, id = 0;
+  const k = () => phone.getBoundingClientRect().width / 402;
+  const pos = e => axis === "y" ? e.clientY : e.clientX;
+  const get = () => axis === "y" ? el.scrollTop : el.scrollLeft;
+  const set = v => { if (axis === "y") el.scrollTop = v; else el.scrollLeft = v; };
+  el.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "mouse") return;
+    e.stopPropagation();
+    down = true; moved = false; p0 = last = pos(e); s0 = get(); lastT = performance.now(); v = 0; id = e.pointerId; cancelAnimationFrame(raf);
+  });
+  el.addEventListener("pointermove", e => {
+    if (!down) return;
+    if (!moved && Math.abs(pos(e) - p0) > 5) { moved = true; el.setPointerCapture(id); el.classList.add("dragging"); }
+    if (!moved) return;
+    set(s0 - (pos(e) - p0) / k());
+    const now = performance.now(); v = (pos(e) - last) / k() / Math.max(8, now - lastT) * 16; last = pos(e); lastT = now;
+  });
+  const up = () => {
+    if (!down) return; down = false; el.classList.remove("dragging");
+    if (!moved) return;
+    const glide = () => { if (Math.abs(v) < .3) return; set(get() - v); v *= .93; raf = requestAnimationFrame(glide); };
+    raf = requestAnimationFrame(glide);
+  };
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  // 드래그 직후의 click은 무시
+  el.addEventListener("click", e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+}
+dragScroll(frScroll, "y");
+dragScroll(document.getElementById("frRow"), "x");
+
+// ── 홈 캐러셀: 가운데 = Lucky Item, 왼쪽 = Place, 오른쪽 = Music. 옆 카드 탭·좌우 밀기로 회전, 가운데 탭 → 상세
+const cards = [...document.querySelectorAll(".ccard")];
+const ctaEl = document.getElementById("ctaCapture");
+let carRotT = 0;
+function rotateCarousel(dir) {          // dir = 1: 오른쪽 카드가 가운데로
+  cards.forEach(c => {
+    const old = +c.dataset.slot; let s = old - dir, wrap = false;
+    if (s > 1) { s = -1; wrap = true; } if (s < -1) { s = 1; wrap = true; }
+    c.classList.remove("wrap", "leave"); void c.offsetWidth;
+    c.classList.toggle("wrap", wrap);          // 반대편으로 넘어가는 카드: 가운데 카드 뒤로 지나감
+    c.classList.toggle("leave", old === 0);    // 가운데에서 빠지는 카드: 넘어가는 카드보다는 위
+    c.dataset.slot = s;
+  });
+  clearTimeout(carRotT); carRotT = setTimeout(() => cards.forEach(c => c.classList.remove("wrap", "leave")), 650);
+}
+function resetCarousel() {
+  const base = { item: 0, place: -1, music: 1 };
+  cards.forEach(c => { c.classList.add("no-anim"); c.dataset.slot = base[c.dataset.go]; void c.offsetWidth; c.classList.remove("no-anim"); });
+}
+(() => {
+  const car = document.getElementById("carousel"); let x0 = null, moved = false;
+  car.addEventListener("pointerdown", e => { x0 = e.clientX; moved = false; const c = e.target.closest(".ccard"); if (c && c.dataset.slot === "0") c.classList.add("pressed"); });
+  car.addEventListener("pointermove", e => { if (x0 !== null && Math.abs(e.clientX - x0) > 8) { moved = true; cards.forEach(c => c.classList.remove("pressed")); } });
+  const end = e => {
+    cards.forEach(c => c.classList.remove("pressed"));
+    if (x0 === null) return; const dx = e.clientX - x0; x0 = null;
+    if (busy || stack.length > 1 || tab !== "home") return;
+    const k = phone.getBoundingClientRect().width / 402;
+    if (moved && Math.abs(dx) > 30 * k) { rotateCarousel(dx < 0 ? 1 : -1); lock(450); return; }
+    if (moved) return;
+    const c = e.target.closest(".ccard"); if (!c) return;
+    const slot = +c.dataset.slot;
+    if (slot === 0) push(c.dataset.go);
+    else { rotateCarousel(slot); lock(450); }
+  };
+  car.addEventListener("pointerup", end); car.addEventListener("pointercancel", () => { x0 = null; cards.forEach(c => c.classList.remove("pressed")); });
+})();
+
+// ── 화면 스택: 홈 → Lucky 상세 → 연결1 → 연결2
+const NAV_MS = 600;
+const screen = id => document.getElementById(id === "home" ? (tab === "friends" ? "friends" : "home") : "scr-" + id);
+let stack = ["home"], busy = false;
+function lock(ms) { busy = true; setTimeout(() => busy = false, ms); }
+function push(id) {
+  if (busy || !id) return;
+  const kind = screen(id).dataset.kind;
+  screen(stack[stack.length - 1]).classList.add(kind === "modal" ? "under-m" : "under");
+  screen(id).style.zIndex = 10 + stack.length;   // 나중에 연 화면이 항상 위 (DOM 순서와 무관: 채팅 → Lucky Item/Music)
+  screen(id).classList.add("on");
+  stack.push(id); lock(NAV_MS);
+}
+// 지금 화면을 다른 화면으로 바꿈 (카메라 → 참): 새 화면이 위에서 페이드인 된 뒤 이전 화면을 치움
+function replaceTop(id, ms = 700) {
+  const prev = screen(stack[stack.length - 1]);
+  screen(id).style.zIndex = (+prev.style.zIndex || 10) + 1;   // 바뀌는 화면이 이전 화면 위에서 겹쳐 나타나도록
+  screen(id).classList.add("on"); stack[stack.length - 1] = id;
+  setTimeout(() => { prev.classList.add("no-anim"); prev.classList.remove("on"); void prev.offsetWidth; prev.classList.remove("no-anim"); }, ms);
+}
+function pop() {
+  if (busy || stack.length < 2) return;
+  screen(stack.pop()).classList.remove("on");
+  const top = stack[stack.length - 1];
+  screen(top).classList.remove("under", "under-m");
+  // 홈으로 돌아오면 선택했던 카드는 원래 색으로
+  if (top === "home") setTimeout(() => document.querySelectorAll(".hcard.sel").forEach(c => c.classList.remove("sel")), NAV_MS * .7);
+  lock(NAV_MS);
+}
+function resetNav() {
+  stack = ["home"]; setTab("home", true);
+  if (phone.classList.contains("tab-freq")) { phone.classList.remove("tab-freq"); if (typeof freqSend === "function") freqSend("chiring:reset"); }
+  if (typeof resetCarousel === "function") resetCarousel();
+  if (typeof resetRooms === "function") resetRooms();
+  document.querySelectorAll(".push.on, .under, .under-m, .hcard.sel").forEach(e => e.classList.remove("on", "under", "under-m", "sel"));
+  resetCamera(); stopCharm(); if (typeof resetChat === "function") resetChat();
+  if (typeof stopPano === "function") { stopPano(); window.evStop && window.evStop(); }
+}
+
+function pressable(el) {
+  el.addEventListener("pointerdown", () => el.classList.add("pressed"));
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => el.addEventListener(ev, () => el.classList.remove("pressed")));
+}
+// 4 → 상세: 카드가 민트로 바뀌는 걸 잠깐 보여 준 뒤 이동
+document.querySelectorAll(".hcard").forEach(card => {
+  pressable(card);
+  card.addEventListener("click", () => {
+    if (busy || stack.length > 1 || tab !== "home" || !phone.classList.contains("s-home")) return;
+    card.classList.add("sel"); lock(420);
+    setTimeout(() => { busy = false; push(card.dataset.go); }, 420);
+  });
+});
+// 상세 화면 하단 버튼 (Lucky Place·Music의 다음 화면은 아직 없음 → 눌림 반응만)
+document.querySelectorAll(".press").forEach(btn => {
+  pressable(btn);
+  btn.addEventListener("click", () => push(btn.dataset.next));
+});
+document.querySelectorAll(".hot[data-next]").forEach(h => h.addEventListener("click", () => push(h.dataset.next)));
+document.querySelectorAll(".back").forEach(b => b.addEventListener("click", pop));
+
+// ── 행운 공구방 채팅 (결과 '확인' 또는 친구방 Lucky Talk에서 들어옴)
+const chat = document.getElementById("scr-chat"), chMsgs = document.getElementById("chMsgs"), chThread = document.getElementById("chThread");
+const threadA = document.getElementById("threadA"), chRoute = document.getElementById("chRoute");
+const chNms = [...chThread.querySelectorAll(".nm")];
+let chatTimers = [], rankSeen = false;
+const nmBottom = m => m.offsetTop + m.offsetHeight;
+// 대화 배치: B(겹쳐보기) → 보낸 장소·답장 → A(순위 비교, 확인 후). 보이는 내용 끝 + 여백만큼 스크롤 높이를 잡음
+function bEnd() { const shown = chNms.filter(m => m.classList.contains("show")); return shown.length ? nmBottom(shown[shown.length - 1]) : 500; }
+function threadEnd() { return threadA.classList.contains("show") ? threadA.offsetTop + 485 : bEnd(); }
+function layoutThread() {
+  threadA.style.top = (bEnd() + (bEnd() > 500 ? 14 : 4)) + "px";
+  chThread.style.height = (threadEnd() + 24) + "px";
+  chRoute.classList.toggle("on", chNms[1].classList.contains("show"));
+}
+function scrollToY(y) { chMsgs.scrollTo({ top: Math.max(0, y - chMsgs.clientHeight + 20), behavior: "smooth" }); }
+function resetChat() {
+  chatTimers.forEach(clearTimeout); chatTimers = [];
+  chat.classList.add("no-anim");
+  chat.classList.remove("mixing", "spread", "ranked", "dimmed", "rk-reveal");
+  rankSeen = false; if (typeof clearMine === "function") clearMine();
+  chNms.forEach(m => m.classList.remove("show")); threadA.classList.remove("show");
+  layoutThread(); chMsgs.scrollTop = 0;
+  void chat.offsetWidth; chat.classList.remove("no-anim");
+}
+function openChat() {
+  if (busy || stack.length > 1 || tab !== "friends") return;
+  resetChat(); push("chat");
+}
+document.getElementById("luckyTalk").addEventListener("click", openChat);
+// 운세 수다방 카드 (팀원 앱 FriendsRoom과 같은 데이터·배치). 가운데 = 행운 공구방
+const CLOVER = '<svg width="17" height="17" viewBox="0 0 17 17" fill="currentColor" aria-hidden="true"><path d="M9 7.5H7.5V6H6V4.5H4.5V0H7.5V1.5H9V0H12V4.5H10.5V6H9V7.5ZM9 7.5H10.5V6H12V4.5H16.5V7.5H15V9H16.5V12H12V10.5H10.5V9H9V7.5ZM4.5 12H0V9H1.5V7.5H0V4.5H4.5V6H6V7.5H7.5V9H6V10.5H4.5V12ZM4.5 12H6V10.5H7.5V9H9V10.5H10.5V12H12V16.5H9V15H7.5V16.5H4.5V12Z"/></svg>';
+const ROOMS = [
+  { title: "Bad Luck Bouncers", mem: "Minji + 3 others", unread: 3, img: "__img_room_l__" },
+  { title: "Lucky Squad", mem: "Sumin + 2 others", unread: 8, img: "__img_room_c__", clover: true, baked: true, chat: true },
+  { title: "LuckyClub", mem: "Kwon + 4 others", unread: 2, img: "__img_room_r__" },
+  { title: "Mindful Club", mem: "Jisu + 5 others", unread: 1, img: "__img_room_5__" },
+  { title: "Princess Club", mem: "Haneul + 1 other", unread: 4, img: "__img_room_4__" },
+];
+const roomsEl = document.getElementById("rooms");
+let roomActive = 1, roomT = 0;
+const roomEls = ROOMS.map((r, i) => {
+  const b = document.createElement("button"); b.type = "button"; b.className = "room" + (r.baked ? " baked" : "");
+  b.innerHTML = `<img src="${r.img}" alt="" draggable="false"><i class="rm-grad"></i><i class="rm-dim"></i><span class="rm-badge">${r.unread}</span>` +
+    `<span class="rm-info"><span class="rm-mem">${r.mem}</span><span class="rm-title">${r.title}${r.clover ? CLOVER : ""}</span></span>`;
+  b.setAttribute("aria-label", r.title); roomsEl.appendChild(b); return b;
+});
+const roomOff = i => { const n = ROOMS.length; let d = ((i - roomActive) % n + n) % n; if (d > n / 2) d -= n; return d; };
+function layoutRooms(animate) {
+  roomEls.forEach((el, i) => {
+    const d = roomOff(i), old = el.dataset.pos === undefined ? d : +el.dataset.pos;
+    el.classList.remove("wrap"); if (animate && Math.abs(d - old) > 2) { void el.offsetWidth; el.classList.add("wrap"); }   // 끝에서 끝으로: 뒤로 지나감
+    el.dataset.pos = d;
+  });
+  clearTimeout(roomT); roomT = setTimeout(() => roomEls.forEach(el => el.classList.remove("wrap")), 600);
+}
+function rotateRooms(step) { roomActive = ((roomActive + step) % ROOMS.length + ROOMS.length) % ROOMS.length; layoutRooms(true); lock(420); }
+function resetRooms() { roomActive = 1; roomEls.forEach(el => el.classList.add("no-anim")); layoutRooms(false); void roomsEl.offsetWidth; roomEls.forEach(el => el.classList.remove("no-anim")); }
+layoutRooms(false);
+(() => {
+  let x0 = null, y0 = 0, swiped = false;
+  roomsEl.addEventListener("pointerdown", e => { x0 = e.clientX; y0 = e.clientY; swiped = false; });
+  roomsEl.addEventListener("pointerup", e => {
+    if (x0 === null) return; const k = phone.getBoundingClientRect().width / 402, dx = (e.clientX - x0) / k, dy = (e.clientY - y0) / k; x0 = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) && !busy) { swiped = true; rotateRooms(dx < 0 ? 1 : -1); }
+  });
+  roomsEl.addEventListener("pointercancel", () => { x0 = null; });
+  roomEls.forEach((el, i) => el.addEventListener("click", e => {
+    if (swiped) { swiped = false; return; }
+    if (busy || stack.length > 1 || tab !== "friends") return;
+    const d = roomOff(i);
+    if (d === 0) { if (ROOMS[i].chat) openChat(); else toast(`${ROOMS[i].title} is coming soon`); }
+    else rotateRooms(d);
+  }));
+})();
+dragScroll(chMsgs, "y");
+
+// 운세 순위 비교: 처음엔 딤0(제목) → 딤1(1등 발표). '확인'하면 순위 바가 열리고 순위 비교 대화(A)가 이어서 나타남
+document.getElementById("chChip").addEventListener("click", () => {
+  if (busy || stack[stack.length - 1] !== "chat" || chat.classList.contains("mixing") || chat.classList.contains("dimmed")) return;
+  if (chat.classList.contains("ranked")) chat.classList.remove("ranked");
+  else if (rankSeen) { chat.classList.add("ranked"); scrollToY(threadEnd() + 102); }
+  else { chat.classList.remove("rk-reveal"); chat.classList.add("dimmed"); chatTimers.push(setTimeout(() => chat.classList.add("rk-reveal"), 1350)); }
+});
+document.getElementById("rkOk").addEventListener("click", () => {
+  if (!chat.classList.contains("dimmed")) return;
+  rankSeen = true; chat.classList.remove("dimmed", "rk-reveal");
+  clearMine(); threadA.classList.add("show"); layoutThread();
+  setTimeout(() => { chat.classList.add("ranked"); scrollToY(threadEnd() + 102); }, 220);
+  chatTimers.push(setTimeout(() => chMsgs.scrollTo({ top: chMsgs.scrollHeight, behavior: "smooth" }), 820));   // 순위 바가 다 열린 뒤 끝까지
+});
+// 장소 카드의 '길 찾기' → 망원 한강공원 지도
+chRoute.addEventListener("click", () => { if (!busy && stack[stack.length - 1] === "chat") push("mapolink"); });
+
+// 운세 겹쳐보기: 버블이나 버튼 → 딤1(물음표 카드) → 자동으로 세 장이 펼쳐짐(딤2)
+function spreadMix() { if (chat.classList.contains("mixing")) chat.classList.add("spread"); }
+function openMix() {
+  if (busy || stack[stack.length - 1] !== "chat" || chat.classList.contains("mixing")) return;
+  chat.classList.remove("spread"); chat.classList.add("mixing");
+  // 딤 아래에서 채팅을 '운세 겹쳐보기' 대화(B)로 바꿔 둠 (딤에 가려 보이지 않음)
+  setTimeout(() => { chat.classList.add("no-anim"); chat.classList.remove("ranked"); chMsgs.scrollTop = 0; void chat.offsetWidth; chat.classList.remove("no-anim"); }, 360);
+  chatTimers.push(setTimeout(spreadMix, 1700));
+}
+function closeMix() { chat.classList.remove("mixing", "spread"); }
+document.getElementById("mixBubble").addEventListener("click", openMix);
+document.getElementById("chMixChip").addEventListener("click", openMix);
+document.getElementById("mxOk").addEventListener("click", closeMix);
+document.getElementById("mxStack").addEventListener("click", spreadMix);
+const mixGo = { mxItem: "mixitem", mxPlace: "mixplace", mxMusic: "mixmusic" };   // 1109: 카드마다 겹쳐보기 전용 연결 화면
+Object.entries(mixGo).forEach(([id, to]) => document.getElementById(id).addEventListener("click", () => {
+  if (!chat.classList.contains("spread")) { spreadMix(); return; }
+  if (busy) return;
+  push(to);   // 뒤로(<) → 펼쳐진 카드로 돌아와 다른 카드도 볼 수 있음 · 확인/공유하기 → 겹쳐보기를 닫고 채팅으로
+}));
+// 장소 공유하기 → 채팅으로 돌아와 내가 장소를 보내고, 친구들이 답장 (화면이 따라 내려감)
+function showMsg(i) {
+  const m = chNms[i]; m.classList.add("show"); layoutThread();
+  requestAnimationFrame(() => scrollToY(nmBottom(m)));
+}
+document.getElementById("mpOk").addEventListener("click", () => { if (!busy) { pop(); setTimeout(closeMix, 300); } });
+// 아이템·플리 연결: 확인 → 채팅으로, 공유하기 → 채팅으로 돌아오며 공유 안내
+document.querySelectorAll("#scr-mixitem .mx-ok, #scr-mixmusic .mx-ok").forEach(b => b.addEventListener("click", () => { if (!busy) { pop(); setTimeout(closeMix, 300); } }));
+[["mxiShare", "mixitem", "Today’s Lucky Item shared to the chat"], ["mxmShare", "mixmusic", "Today’s Lucky Playlist shared to the chat"]].forEach(([id, scr, msg]) =>
+  document.getElementById(id).addEventListener("click", () => {
+    if (busy || stack[stack.length - 1] !== scr) return;
+    pop(); closeMix(); setTimeout(() => toast(msg, 1800), 450);
+  }));
+document.getElementById("shareToChat").addEventListener("click", () => {
+  if (busy || stack[stack.length - 1] !== "mixplace") return;
+  pop(); closeMix(); clearMine();
+  chatTimers.forEach(clearTimeout); chatTimers = [];
+  chNms.forEach(m => m.classList.remove("show")); layoutThread(); chMsgs.scrollTop = 0;
+  [900, 1500, 2100, 3400, 4300, 5100].forEach((t, i) => chatTimers.push(setTimeout(() => showMsg(i), t)));
+});
+
+// ── 오늘의 행운 담기
+const ctaCapture = document.getElementById("ctaCapture");
+ctaCapture.addEventListener("click", () => {
+  if (stack.length === 1 && tab === "home" && phone.classList.contains("s-home")) { resetCamera(); push("cam"); }
+});
+
+// ── 카메라: 셔터 → 뷰파인더가 잠깐 하얘지고 화면이 멈춤(찍힘) → '행운 담기'로 참 화면
+const cam = document.getElementById("scr-cam"), shutter = document.getElementById("shutter");
+let captured = false;
+pressable(shutter);
+function capture() {
+  if (stack[stack.length - 1] !== "cam" || busy) return;
+  captured = true;
+  cam.classList.remove("flash"); void cam.offsetWidth;   // 다시 찍어도 플래시가 다시 재생되게
+  cam.classList.add("shot", "flash");
+}
+function resetCamera() { captured = false; cam.classList.remove("shot", "flash", "zoom2"); shutter.classList.remove("hint"); }
+shutter.addEventListener("click", capture);
+document.getElementById("captureBtn").addEventListener("click", () => {
+  if (stack[stack.length - 1] !== "cam" || busy) return;
+  if (!captured) {                      // 아직 안 찍었으면 셔터를 살짝 눌러 보이며 안내
+    shutter.classList.remove("hint"); void shutter.offsetWidth; shutter.classList.add("hint"); return;
+  }
+  replaceTop("charm"); startCharm();
+  const scrCharm = document.getElementById("scr-charm"); clearTimeout(chGlowT); scrCharm.classList.remove("cg-on");
+  chGlowT = setTimeout(() => document.getElementById("scr-charm").classList.add("cg-on"), 950);   // 참이 나타나기 직전에 아래 빛이 차오름
+});
+
+// ── 참 등장: 키링과 같은 진자 물리 — 고리 구멍에 매달린 채 떠오르며 흔들리다 잦아듦
+const charm = document.getElementById("charm"), charmSheen = document.getElementById("charmSheen");
+const PIV = { x: 170, y: 28 };            // 참 이미지 안의 고리 구멍 (#charm 기준)
+const C = { g: 14000, L: 135, damping: 2.3, maxA: .9 };
+let charmRAF = 0;
+function startCharm() {
+  cancelAnimationFrame(charmRAF);
+  const t0 = performance.now() + 1150;   // 참 없는 화면(제목만)을 잠깐 보여 준 뒤 등장
+  let a = .09, w = 0, last = null, hist = [];
+  const path = t => {                     // 고리 위치: 아래에서 떠올라 제자리로
+    const k = Math.min(1, Math.max(0, t / 1100)), e = 1 - Math.pow(1 - k, 3);
+    return [ 0, (1 - e) * -16 ];             // 살짝 위에서 내려와 고리에 걸리듯 자리 잡음
+  };
+  const DT = 1 / 240; let simT = 0;
+  function frame(now) {
+    const t = (now - t0) / 1000;
+    if (t < 0) { charmRAF = requestAnimationFrame(frame); return; }
+    while (simT + DT <= t) {
+      simT += DT;
+      const P = path(simT * 1000); hist.push(P); if (hist.length > 3) hist.shift();
+      let ax = 0, ay = 0;
+      if (hist.length === 3) { ax = (hist[2][0] - 2 * hist[1][0] + hist[0][0]) / (DT * DT); ay = (hist[2][1] - 2 * hist[1][1] + hist[0][1]) / (DT * DT); }
+      const breeze = .7 * Math.sin(simT * 1.4) * Math.min(1, Math.max(0, simT - 2) / 2);
+      const acc = -((C.g - ay) * Math.sin(a) + ax * Math.cos(a)) / C.L - C.damping * w + breeze;
+      w += acc * DT; a = Math.max(-C.maxA, Math.min(C.maxA, a + w * DT));
+    }
+    const P = path(t * 1000);
+    // 번쩍임·블러·튀어오름 없이: 천천히 나타나며 아주 조금 커지고, 살짝 흔들리다 멈춤
+    const vis = Math.min(1, t / .8), vis3 = -(Math.cos(Math.PI * vis) - 1) / 2;
+    const sc = .97 + .03 * (1 - Math.pow(1 - Math.min(1, t / 1.1), 3));
+    const ry = 9 * Math.exp(-t / .9) * Math.sin(2 * Math.PI * .8 * t);
+    charm.style.opacity = vis3.toFixed(3);
+    charm.style.filter = "none";
+    charm.style.transform = `translate(${P[0]}px,${P[1]}px) rotate(${a}rad) rotateY(${ry}deg) scale(${sc})`;
+    const ks = Math.min(1, Math.max(0, (t - 1.2) / 1.6)), sweep = -(Math.cos(Math.PI * ks) - 1) / 2;
+    charmSheen.style.backgroundPosition = `${130 - sweep * 160 + a * 200}% 0`;
+    charm.classList.toggle("twinkle", t > 1.6);
+    charmRAF = requestAnimationFrame(frame);
+  }
+  charmRAF = requestAnimationFrame(frame);
+}
+let chGlowT = 0;
+function stopCharm() { clearTimeout(chGlowT); document.getElementById("scr-charm").classList.remove("cg-on"); cancelAnimationFrame(charmRAF); charm.style.opacity = 0; charm.classList.remove("twinkle"); }
+
+
+// ── 참 '확인' → 결과 화면
+document.getElementById("charmOk").addEventListener("click", () => {
+  if (busy || stack[stack.length - 1] !== "charm") return;
+  replaceTop("result"); lock(700); setTimeout(stopCharm, 750);
+});
+// ── 결과 '확인' → 오늘의 행운 - 연결 (모은 사진이 돌며 모임) → 키링_2_버튼x → 키링_2
+document.getElementById("resultOk").addEventListener("click", () => {
+  unlockSound();
+  if (busy || stack[stack.length - 1] !== "result") return;
+  replaceTop("evening", 800); lock(800); window.evStart();
+});
+
+/* ── 모아보기: 원통 안쪽 곡면 위의 사진 띠
+   처음엔 가운데에 한 장처럼 겹쳐 있다가 양옆으로 촤르륵 펼쳐지고,
+   이후 천천히 흐름. 좌우로 끌면 돌아가고 놓으면 관성으로 멈춤. */
+const PANO = ["coffee", "poster", "girl", "place", "item", "music", "beads", "blob", "doll", "bunny", "umbrella"];
+const PANO_IMG = { coffee: "__img_col_coffee__", poster: "__img_col_poster__", girl: "__img_col_girl__",
+  place: "__img_col_place__", item: "__img_col_item__", music: "__img_col_music__", beads: "__img_col_beads__",
+  blob: "__img_col_blob__", doll: "__img_col_doll__", bunny: "__img_col_bunny__", umbrella: "__img_col_umbrella__", hangang: "__img_col_hangang__" };
+const PV = { R: 262, Z0: 232, step: 33, spread: 1300, speed: 1.4 };   // 반지름·카메라 위치·카드 간격(도)·초당 카드 수
+const panoEl = document.getElementById("pano"), panoRing = document.getElementById("panoRing");
+const pcards = PANO.map((k, i) => {
+  const el = document.createElement("div"); el.className = "pcard";
+  el.innerHTML = `<img src="${PANO_IMG[k]}" alt="">`; panoRing.appendChild(el);
+  return { el, i, seed: (Math.sin(i * 12.9898) * 43758.5453) % 1 };
+});
+const CENTER = PANO.indexOf("item");
+let panoRAF = 0, panoT0 = 0, panoRot = 0, panoVel = 0, dragging = false, lastX = 0, lastT = 0, lastFrame = 0;
+const easeIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function renderPano(now) {
+  const t = now - panoT0, dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
+  if (!dragging) {
+    const ramp = Math.min(1, Math.max(0, (t - 1700) / 1400)), rampE = ramp * ramp * (3 - 2 * ramp);
+    const auto = -PV.speed * PV.step * rampE;   // 펼쳐진 뒤 부드럽게 가속해 빠르게 흐름
+    panoVel += (auto - panoVel) * Math.min(1, dt * 1.6);
+    panoRot += panoVel * dt;
+  }
+  const span = PANO.length * PV.step;
+  pcards.forEach(c => {
+    const d = Math.abs(c.i - CENTER);
+    const k = easeIO(Math.min(1, Math.max(0, (t - 250 - d * 55) / PV.spread)));   // 가운데부터 바깥으로
+    let a = (c.i - CENTER) * PV.step + panoRot;
+    a = ((a + span / 2) % span + span) % span - span / 2;                        // 끝없이 이어지는 띠
+    const ang = a * k;
+    const pile = (1 - k) * (c.seed * 16 - 8);                                     // 겹쳐 있을 때 살짝 흐트러진 각도
+    const visible = Math.abs(ang) < 74;
+    c.el.style.visibility = visible ? "visible" : "hidden";
+    if (!visible) return;
+    const z = PV.Z0 * k + 120 * (1 - k);
+    c.el.style.transform = `translateZ(${z}px) rotateY(${ang}deg) translateZ(${-PV.R}px) rotateZ(${pile}deg) scale(${.82 + .18 * k})`;
+    c.el.style.opacity = Math.min(1, (t - d * 55) / 300 + .0).toFixed(3);
+    c.el.style.zIndex = String(100 - Math.round(Math.abs(ang)));
+  });
+  panoRAF = requestAnimationFrame(renderPano);
+}
+function startPano() { cancelAnimationFrame(panoRAF); panoT0 = lastFrame = performance.now(); panoRot = 0; panoVel = 0; panoRAF = requestAnimationFrame(renderPano); }
+function stopPano() { cancelAnimationFrame(panoRAF); }
+panoEl.addEventListener("pointerdown", e => { dragging = true; lastX = e.clientX; lastT = performance.now(); panoVel = 0; panoEl.classList.add("dragging"); panoEl.setPointerCapture(e.pointerId); });
+panoEl.addEventListener("pointermove", e => {
+  if (!dragging) return;
+  const scale = phone.getBoundingClientRect().width / 402, dx = (e.clientX - lastX) / scale, now = performance.now();
+  const dRot = dx * .16; panoRot += dRot; panoVel = dRot / Math.max(.008, (now - lastT) / 1000);
+  lastX = e.clientX; lastT = now;
+});
+["pointerup", "pointercancel"].forEach(ev => panoEl.addEventListener(ev, () => { dragging = false; panoEl.classList.remove("dragging"); panoVel = Math.max(-120, Math.min(120, panoVel)); }));
+
+// ── 키링 등장 사운드 (작은 볼륨). 브라우저는 탭 없이 소리를 막으므로, '확인' 탭 순간에 미리 재생 권한을 받아 둠
+const keyringSound = new Audio("__snd_keyring__");
+keyringSound.preload = "auto"; keyringSound.volume = .55;
+let soundUnlocked = false;
+function unlockSound() {
+  if (soundUnlocked) return;
+  keyringSound.muted = true;
+  const p = keyringSound.play();
+  const done = () => { keyringSound.pause(); keyringSound.currentTime = 0; keyringSound.muted = false; soundUnlocked = true; };
+  if (p && p.then) p.then(done).catch(() => { keyringSound.muted = false; }); else done();
+}
+function playKeyringSound() {
+  try { keyringSound.muted = false; keyringSound.currentTime = 0; const p = keyringSound.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+}
+function stopKeyringSound() { try { keyringSound.pause(); keyringSound.currentTime = 0; } catch (e) {} }
+
+document.getElementById("collectOk").addEventListener("click", () => {
+  unlockSound();
+  if (busy || stack[stack.length - 1] !== "collect") return;
+  replaceTop("evening", 800); lock(800); setTimeout(stopPano, 800); window.evStart();
+});
+
+/* ── 저녁: 이전 프로토타입 (Spin Shutter → 키링). 이름 충돌을 막으려고 함수 안에 가둠 */
+(function () {
+  const ease = {
+    inOutCubic: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+    inOutSine: t => -(Math.cos(Math.PI * t) - 1) / 2,
+    outCubic: t => 1 - Math.pow(1 - t, 3),
+    inCubic: t => t * t * t,
+  };
+  const clamp01 = t => Math.max(0, Math.min(1, t));
+  const seg = (t, a, b) => clamp01((t - a) / (b - a));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mixColor = (a, b, t) => `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], t))).join(",")})`;
+  const root = document.getElementById("scr-evening");
+  // 1109 레퍼런스 영상: 가운데 뭉친 카드가 빠르게 퍼지며 돌다가 점점 느려져 사선 궤도로 잔잔히 계속 돎
+  const D = 1200;
+  const T = { openA: 250, openB: 1700, driftA: 1000, driftB: 2900, spinA: 2600 + D, spinB: 4200 + D, popAt: 4000 + D,
+              cardsOutA: 3950 + D, cardsOutB: 4500 + D, ringA: 4000 + D, ringB: 5600 + D, t1OutA: 3000 + D, t1OutB: 3700 + D,
+              t2InA: 4900 + D, t2InB: 5900 + D, sheenA: 5600 + D, sheenB: 7200 + D };
+  // 오늘 모은 사진들로 궤도를 구성
+  const PHOTOS = [PANO_IMG.bunny, PANO_IMG.girl, PANO_IMG.poster, PANO_IMG.item, PANO_IMG.hangang, PANO_IMG.doll, PANO_IMG.beads,
+                  PANO_IMG.place, PANO_IMG.blob, PANO_IMG.music, PANO_IMG.coffee];   // 11장 (오늘 담은 한강 노을 참 포함): 뒤쪽 궤도도 빈틈없이
+  const ORB = { cx: 203, cy: 505, rx: 228, ry: 100, tilt: -16 * Math.PI / 180, backScale: .6, backOpacity: .5, backBlur: 2.4,
+                introSpin: Math.PI * 1.6, omega: .5, spinTurns: Math.PI * 2 * 2.6 };
+  const stage = document.getElementById("ev-stage");
+  const cards = PHOTOS.map((src, i) => {
+    const el = document.createElement("div"); el.className = "ev-card"; el.innerHTML = `<i class="s"><img src="${src}" alt=""></i><i class="b"><img src="${src}" alt=""></i><i class="g"></i>`;
+    stage.appendChild(el); return { el, s: el.querySelector(".s"), b: el.querySelector(".b"), g: el.querySelector(".g"), base: (i / PHOTOS.length) * Math.PI * 2 + .3, z: -1, bk: -1, gk: -1 };
+  });
+  // 실제 원근: 기울어진 3D 원 궤도를 카메라(거리 CAM)로 투영 → 뒤쪽은 카드만 작아지는 게 아니라 궤도 폭·간격도 함께 좁아져 빈틈이 생기지 않음
+  const CAM = 820, PITCH = 27 * Math.PI / 180, LIFT = 20;   // LIFT: 원근으로 앞쪽이 더 올라간 만큼 궤도 중심을 내려 화면 균형 유지
+  function project(theta, r) {
+    const R = ORB.rx * r, x3 = R * Math.sin(theta), z3 = R * Math.cos(theta);            // z3 > 0 : 앞쪽(카메라 쪽)
+    const zv = z3 * Math.cos(PITCH), persp = CAM / (CAM - zv);                           // 앞은 크게, 뒤는 작게 (옆 = 1)
+    const x = x3 * persp, y = -z3 * Math.sin(PITCH) * persp;                             // 앞쪽이 위, 뒤쪽이 아래 (기존 사선 궤도 그대로)
+    const c = Math.cos(ORB.tilt), s = Math.sin(ORB.tilt);
+    // 카드 기울기: 궤도 방향을 따라 아주 살짝(최대 1.6°). 각도 함수(atan2)는 맨 뒤를 지날 때 +180°→-180°로 넘어가 카드가 뚝 꺾였음 → 끊김 없는 sin(2θ)로
+    const tilt = 1.6 * Math.sin(2 * theta);
+    return { x: ORB.cx + x * c - y * s, y: ORB.cy + LIFT * r + x * s + y * c, depth: (Math.cos(theta) + 1) / 2, persp, angle: tilt };   // 카드는 거의 똑바로 선 채로 돎
+  }
+  const spinCurve = k => Math.pow(k, 3.2);
+  const outExpo = k => k >= 1 ? 1 : 1 - Math.pow(2, -9 * k);
+  const openAt = t => outExpo(seg(t, T.openA, T.openB));
+  const rotAt = t => (1 - openAt(t)) * -ORB.introSpin + ORB.omega * Math.max(0, t - T.openA) / 1000 + spinCurve(seg(t, T.spinA, T.spinB)) * ORB.spinTurns;
+  function renderOrbit(t) {
+    const open = openAt(t), ks = seg(t, T.spinA, T.spinB);
+    const rot = rotAt(t);
+    const speed = Math.max(0, Math.abs(rotAt(t) - rotAt(t - 16)) / .016 - ORB.omega * 1.5);   // 잔잔히 도는 속도보다 빠를 때만 흐림
+    const out = ease.inCubic(seg(t, T.cardsOutA, T.cardsOutB));
+    const radius = lerp(.12, 1, open) * (1 + out * .22);
+    const hidden = t > T.cardsOutB + 50;
+    stage.style.display = hidden ? "none" : "";
+    if (hidden) return;
+    cards.forEach((c, i) => {
+      const p = project(c.base + rot, radius);
+      const scale = p.persp * .75 * lerp(.62, 1, open);                                  // 카드 크기도 같은 원근 (앞 1 · 옆 .75 · 뒤 .6)
+      const opacity = lerp(ORB.backOpacity, 1, p.depth) * clamp01(.35 + open * 2) * clamp01(t / 250) * (1 - out);
+      const blur = (1 - p.depth) * ORB.backBlur * open + (1 - open) * 2.5 + Math.min(9, speed * .55);
+      const angle = p.angle + (1 - open) * 14 * (i % 2 ? 1 : -1);
+      c.el.style.transform = `translate3d(${p.x.toFixed(2)}px,${p.y.toFixed(2)}px,0) rotate(${angle.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+      c.el.style.opacity = opacity.toFixed(3);
+      // 흐림 = 흐린 사본의 투명도 (0~5px 흐림 ≈ 0~1), 빨리 돌 때 밝아짐 = 흰 빛 겹침의 투명도
+      const bk = Math.min(1, blur / 5).toFixed(3), gk = Math.min(.5, speed * .015).toFixed(3);
+      if (bk !== c.bk) { c.b.style.opacity = bk; c.s.style.opacity = (1 - bk * .85).toFixed(3); c.bk = bk; }
+      if (gk !== c.gk) { c.g.style.opacity = (gk * .45).toFixed(3); c.gk = gk; }
+      const z = Math.round(p.depth * 100);
+      if (z !== c.z) { c.el.style.zIndex = String(z); c.z = z; }
+    });
+  }
+  const PARTS = {"ring": {"box": [252, 61, 200, 277], "com": [344.5, 197.0]}, "leaf": {"box": [90, 243, 188, 279], "com": [178.4, 389.8]}, "pearl": {"box": [251, 258, 72, 130], "com": [289.3, 320.4]}, "flower": {"box": [81, 284, 281, 450], "com": [212.2, 583.9]}, "key": {"box": [241, 287, 188, 581], "com": [339.6, 589.7]}, "bow": {"box": [375, 308, 132, 151], "com": [437.1, 388.6]}, "snow": {"box": [402, 419, 237, 319], "com": [507.2, 595.0]}};
+  const PIVOT = { ring: { at: [350, 84], parent: null }, leaf: { at: [255, 258], parent: "ring" }, pearl: { at: [292, 272], parent: "ring" },
+    flower: { at: [350, 292], parent: "ring" }, key: { at: [372, 298], parent: "ring" },
+    bow: { at: [415, 300], parent: "ring", comOverride: [488, 540] }, snow: { at: [447, 438], parent: "bow" } };
+  const ORDER = ["ring", "leaf", "pearl", "flower", "snow", "bow", "key"];
+  const SPARKS = { ring: [[350, 82]], leaf: [[138, 328]], bow: [[488, 352]], flower: [[100, 585]], snow: [[598, 655]], key: [[265, 822]] };
+  const IMG = { ring: "__img_ev_part_ring__", leaf: "__img_ev_part_leaf__", pearl: "__img_ev_part_pearl__", flower: "__img_ev_part_flower__",
+                key: "__img_ev_part_key__", bow: "__img_ev_part_bow__", snow: "__img_ev_part_snow__" };
+  const PHYS = { g: 14000, damping: 3.8, rootDamping: 5.5, rootHold: 40, maxAngle: .45 };   // 흔들림을 작고 빨리 잦아들게
+  const keyring = document.getElementById("ev-keyring");
+  const nodes = {};
+  ORDER.forEach(name => {
+    const info = PARTS[name], pv = PIVOT[name], half = v => v.map(n => n / 2);
+    const [bx, by, bw, bh] = half(info.box), p = half(pv.at), com = half(pv.comOverride || info.com);
+    const el = document.createElement("div"); el.className = "ev-part";
+    const maskCss = `-webkit-mask-image:url(${IMG[name]});mask-image:url(${IMG[name]});`;
+    el.innerHTML = `<img src="${IMG[name]}" style="left:${bx}px;top:${by}px;width:${bw}px;height:${bh}px" alt="">` +
+      `<i class="ev-sheen" style="left:${bx}px;top:${by}px;width:${bw}px;height:${bh}px;${maskCss}"></i>` +
+      (SPARKS[name] || []).map((s, k) => `<i class="ev-spark" style="left:${s[0] / 2}px;top:${s[1] / 2}px;animation-delay:${(k + ORDER.indexOf(name)) * .43}s"></i>`).join("");
+    keyring.appendChild(el);
+    nodes[name] = { el, sheen: el.querySelector(".ev-sheen"), parent: pv.parent, p, L: Math.max(20, Math.hypot(com[0] - p[0], com[1] - p[1])),
+                    a: 0, w: 0, P: [0, 0], hist: [], breezePhase: (ORDER.indexOf(name) * 1.7) % 6.28 };
+  });
+  const REST = { x: 175, y: 42 };
+  function rootPath(t) {
+    const k = ease.outCubic(seg(t, T.ringA, T.ringB));
+    const x = lerp(REST.x - 9, REST.x, k), y = lerp(REST.y + 4, REST.y, k);
+    const s = (t - T.ringB) / 1000, idle = clamp01(s / 2);
+    return [x + idle * (1.6 * Math.sin(s * .9) + .8 * Math.sin(s * 1.73 + 1)), y + idle * (1.1 * Math.sin(s * 1.1 + .4))];
+  }
+  function resetPhysics() {
+    ORDER.forEach(n => { const o = nodes[n]; o.a = 0; o.w = 0; o.hist = []; });
+    nodes.ring.a = .08; nodes.ring.w = .6;
+    nodes.leaf.a = .17; nodes.pearl.a = .2; nodes.flower.a = .14; nodes.key.a = .1; nodes.bow.a = .12; nodes.snow.a = .18;
+    ["leaf", "pearl", "flower", "key", "bow", "snow"].forEach(n => nodes[n].w = .9);
+  }
+  const rot = (v, a) => [v[0] * Math.cos(a) - v[1] * Math.sin(a), v[0] * Math.sin(a) + v[1] * Math.cos(a)];
+  function stepPhysics(t, dt) {
+    const ts = t / 1000;
+    for (const n of ORDER) {
+      const o = nodes[n];
+      if (!o.parent) o.P = rootPath(t);
+      else { const par = nodes[o.parent], d = rot([o.p[0] - par.p[0], o.p[1] - par.p[1]], par.a); o.P = [par.P[0] + d[0], par.P[1] + d[1]]; }
+      o.hist.push(o.P); if (o.hist.length > 3) o.hist.shift();
+      let ax = 0, ay = 0;
+      if (o.hist.length === 3) { const [p2, p1, p0] = o.hist; ax = (p0[0] - 2 * p1[0] + p2[0]) / (dt * dt); ay = (p0[1] - 2 * p1[1] + p2[1]) / (dt * dt); }
+      let acc = -((PHYS.g - ay) * Math.sin(o.a) + ax * Math.cos(o.a)) / o.L;
+      acc += !o.parent ? -PHYS.rootHold * o.a - PHYS.rootDamping * o.w : -PHYS.damping * o.w;
+      acc += .45 * Math.sin(ts * 1.3 + o.breezePhase) * clamp01((t - T.ringB) / 2000);
+      o.w += acc * dt; o.a = Math.max(-PHYS.maxAngle, Math.min(PHYS.maxAngle, o.a + o.w * dt));
+    }
+  }
+  function renderKeyring(t) {
+    const vis = ease.outCubic(seg(t, T.popAt, T.popAt + 800)), ks = seg(t, T.popAt, T.popAt + 1400);
+    const pop = 1 + 2.4 * Math.pow(ks - 1, 3) + 1.4 * Math.pow(ks - 1, 2);
+    keyring.style.opacity = vis.toFixed(3);
+    keyring.style.transformOrigin = "50% 45%";
+    keyring.style.transform = `scale(${lerp(.82, 1, pop)})`;
+    keyring.style.filter = vis < 1 ? `blur(${((1 - vis) * 8).toFixed(2)}px) brightness(${(1 + (1 - vis) * .8).toFixed(2)})` : "none";
+    const sheenK = ease.inOutSine(seg(t, T.sheenA, T.sheenB));
+
+    for (const n of ORDER) {
+      const o = nodes[n];
+      o.el.style.transform = `translate(${o.P[0]}px,${o.P[1]}px) rotate(${o.a}rad) translate(${-o.p[0]}px,${-o.p[1]}px)`;
+      o.sheen.style.backgroundPosition = `${130 - sheenK * 160 + o.a * 260}% 0`;
+    }
+  }
+  const t1 = [...root.querySelectorAll("#ev-t1 span")], t2 = [...root.querySelectorAll("#ev-t2 span")];
+  function textState(el, k, dir) { el.style.opacity = k.toFixed(3); el.style.transform = `translateY(${(1 - k) * 14 * dir}px)`; el.style.filter = `blur(${((1 - k) * 6).toFixed(2)}px)`; }
+  function renderChrome(t) {
+    t1.forEach((el, i) => {
+      const kin = ease.inOutCubic(seg(t, 700 + i * 140, 1600 + i * 140)), kout = ease.inOutCubic(seg(t, T.t1OutA + i * 90, T.t1OutB + i * 90));
+      textState(el, kin * (1 - kout), kout > 0 ? -1 : 1);
+    });
+    t2.forEach((el, i) => textState(el, ease.inOutCubic(seg(t, T.t2InA + i * 140, T.t2InB + i * 140)), 1));
+    evBtns.classList.toggle("show", t > T.t2InB + 300);
+    root.style.background = mixColor([18, 18, 18], [9, 7, 7], ease.inOutSine(seg(t, T.spinA, T.ringB)));
+    keyring.classList.toggle("ev-twinkle", t > T.sheenA);
+  }
+  let start = 0, simT = 0, raf = 0;
+  const DT = 1000 / 240;
+  let sndPlayed = false;
+  function frame(now) {
+    const t = now - start;
+    // 키링 등장 소리: 소리가 차오르는 정점이 키링이 나타나는 순간과 맞도록 0.35초 먼저 재생
+    if (!sndPlayed && t >= T.popAt - 350) { sndPlayed = true; playKeyringSound(); }
+    renderOrbit(t); renderChrome(t);
+    if (t >= T.ringA - 50) {
+      if (simT < T.ringA - 50) { simT = T.ringA - 50; resetPhysics(); }
+      let guard = 0;
+      while (simT + DT <= t && guard++ < 400) { simT += DT; stepPhysics(simT, DT / 1000); }
+      renderKeyring(t);
+    } else { keyring.style.opacity = 0; simT = 0; }
+    raf = requestAnimationFrame(frame);
+  }
+  const evBtns = document.getElementById("evBtns");
+  window.evStart = () => { cancelAnimationFrame(raf); start = performance.now() + 500; simT = 0; sndPlayed = false; raf = requestAnimationFrame(frame); };
+  window.evStop = () => { cancelAnimationFrame(raf); stopKeyringSound(); };
+  renderOrbit(-1); renderChrome(-1);
+})();
+
+// 키링 '홈으로 가기' → 홈_기본 (오늘의 운세는 서비스에 처음 들어왔을 때만)
+document.getElementById("evHome").addEventListener("click", () => {
+  if (stack[stack.length - 1] !== "evening") return;
+  // 키링 화면 → 어둡게 살짝 덮였다가 홈이 부드럽게 드러남 (뚝 끊기지 않게)
+  const veil = document.getElementById("homeVeil");
+  veil.classList.add("on");
+  setTimeout(() => { window.evStop(); markFortuneSeen(); onboarding = false; phone.classList.remove("onb"); start(false); requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.remove("on"))); }, 380);
+});
+// 키링 '친구에게 공유': 알림 칩은 띄우지 않음 (버튼만 눌리는 반응)
+// 키링_2: 회전이 끝나는 순간 새 키링이 천천히 나타나 고리에 매달린 듯 작게 흔들리다 멈춤
+const evFinal = document.getElementById("evFinal"), evKey = document.getElementById("evKey");
+let keyRAF = 0, keyTimer = 0;
+function startKeyFinal() {
+  stopKeyFinal();
+  keyTimer = setTimeout(() => {
+    evFinal.classList.add("show"); const t0 = performance.now();
+    const f = now => {
+      const t = (now - t0) / 1000;
+      const vis = Math.min(1, t / .9), e = -(Math.cos(Math.PI * vis) - 1) / 2;
+      const k = Math.min(1, t / 1.3), pop = 1 + 1.6 * Math.pow(k - 1, 3) + .6 * Math.pow(k - 1, 2);
+      const a = .07 * Math.exp(-t / 1.5) * Math.sin(2 * Math.PI * .75 * t) + .012 * Math.sin(t * 1.15) * Math.min(1, t / 3);
+      evKey.style.opacity = e.toFixed(3);
+      evKey.style.transform = `translateY(${((1 - pop) * 18).toFixed(2)}px) rotate(${a}rad) scale(${(.93 + .07 * pop).toFixed(4)})`;
+      keyRAF = requestAnimationFrame(f);
+    };
+    keyRAF = requestAnimationFrame(f);
+  }, 4450 + 1200);   // 궤도 장면을 1.2초 늘린 만큼
+}
+function stopKeyFinal() { clearTimeout(keyTimer); cancelAnimationFrame(keyRAF); evFinal.classList.remove("show"); evKey.style.opacity = 0; }
+const _evStart = window.evStart, _evStop = window.evStop;
+window.evStart = () => { _evStart(); startKeyFinal(); };
+window.evStop = () => { _evStop(); stopKeyFinal(); };
+// 시연용: 키링 장면 바로 보기
+document.getElementById("replayKey").addEventListener("click", () => {
+  start(false); setTimeout(() => { busy = false; push("evening"); window.evStart(); }, 60);
+});
+document.getElementById("replay").addEventListener("click", () => startOnboarding());
+document.getElementById("replayFortune").addEventListener("click", () => start(true));
+// 이미지(약 6MB)가 모두 준비된 뒤 시작 → 딤1이 확실히 보이고 블러가 걷히는 장면을 놓치지 않음
+// 팀원 앱(친구방·주파수: chiring/)과 연결 — 주파수 탭·기운 선물하기 → 팀원 앱, 팀원 앱의 홈 → #home 으로 돌아옴
+const freqFrame = document.getElementById("freqFrame");
+// 주파수(팀원 앱)는 한 번만 불러 두고, 화면 전환은 신호(postMessage)로 → 다시 불러오지 않아 빈 화면·무반응이 생기지 않음
+let freqLoaded = false, freqQueue = [];
+function freqSend(msg) {
+  if (freqLoaded) { try { freqFrame.contentWindow.postMessage(msg, "*"); } catch (e) {} }
+  else freqQueue.push(msg);
+}
+function onFreqLoad() {
+  if (!freqFrame.getAttribute("src") || freqFrame.getAttribute("src") === "about:blank" || freqLoaded) return;
+  freqLoaded = true; const q = freqQueue; freqQueue = []; q.forEach(freqSend);
+  if (phone.classList.contains("onb-wait")) {      // 첫 온보딩: 앱이 실제로 화면을 그렸는지 확인한 뒤 보여 줌
+    const t0 = performance.now();
+    const ready = () => { try { const r = freqFrame.contentDocument.getElementById("root"); return r && r.children.length && freqFrame.contentDocument.fonts.status === "loaded"; } catch (e) { return true; } };
+    const reveal = () => requestAnimationFrame(() => requestAnimationFrame(() => phone.classList.remove("onb-wait")));
+    (function wait() { if (ready() || performance.now() - t0 > 2500) reveal(); else setTimeout(wait, 30); })();
+  }
+}
+freqFrame.addEventListener("load", onFreqLoad);
+// 이 코드가 실행되기 전에 이미 다 불러왔을 수도 있음 → 그때는 바로 처리
+try { const d = freqFrame.contentDocument; if (freqFrame.dataset.started && d && d.readyState === "complete" && /chiring/.test(d.URL)) onFreqLoad(); } catch (e) {}
+setTimeout(() => phone.classList.remove("onb-wait"), 6000);   // 안전장치: 어떤 경우에도 화면이 가려진 채 남지 않게
+function ensureFreq() { if (!freqFrame.dataset.started) { freqFrame.dataset.started = "1"; freqFrame.src = "chiring/index.html#frequency"; } }
+let freqShowT = 0;                                 // 아카이브를 보여 주기 직전의 대기 (다른 탭을 누르면 취소)
+function openFreq(where) {
+  ensureFreq(); clearTimeout(freqShowT);
+  if (typeof where === "string" && where.startsWith("moment-")) freqSend("chiring:moment:" + where.slice(7));
+  if (where === "myluck") {                        // 아카이브: 팀원 앱을 아카이브 화면으로 바꾼 뒤 보여 줌 → 기운 충전 화면이 번쩍 보이지 않음
+    freqSend("chiring:myluck");
+    if (phone.classList.contains("tab-freq")) return;
+    freqShowT = setTimeout(() => phone.classList.add("tab-freq"), freqLoaded ? 60 : 400);
+    return;
+  }
+  phone.classList.add("tab-freq");                 // 누르면 항상 바로 보임
+}
+// ── 처음 시작: 팀원 앱의 온보딩(사주 설정 → 나의 캐해 리포트) → 끝나면 오늘의 운세 ─────────────
+let onboarding = false;
+function startOnboarding() {
+  clearTimeout(timer); resetNav(); go("home"); onboarding = true;
+  phone.classList.add("tab-freq", "onb");
+  if (freqFrame.dataset.started) { if (freqLoaded || !freqFrame.src.endsWith("#onboarding")) freqSend("chiring:onboarding"); }   // 이미 온보딩으로 불러오는 중이면 다시 보내지 않음
+  else { freqFrame.dataset.started = "1"; freqFrame.src = "chiring/index.html#onboarding"; }
+}
+function endOnboarding() {
+  onboarding = false; phone.classList.remove("tab-freq", "onb");
+  freqSend("chiring:reset");                       // 다음에 '기운 충전'을 열면 주파수 첫 화면
+  start(true);                                     // 사주 설정을 마치면 오늘의 운세가 도착
+}
+function closeFreq(to) {
+  clearTimeout(freqShowT);
+  if (onboarding) { endOnboarding(); return; }
+  if (stack.length > 1) { resetNav(); }
+  setTab(to === "friends" ? "friends" : "home", true);
+  phone.classList.remove("tab-freq");
+  freqSend("chiring:reset");                       // 다음에 열 때 주파수 첫 화면부터 (안 보이는 동안 정리)
+}
+addEventListener("load", () => setTimeout(ensureFreq, 800));
+document.querySelectorAll(".to-freq").forEach(el => el.addEventListener("click", () => { if (!busy) openFreq("frequency"); }));
+// 친구방 Lucky Moments 카드 → 팀원 앱의 스토리 화면
+
+// ── 기본 버튼들: 하트·별·재생 토글, 눌림 반응, 안내 토스트
+const toastEl = document.getElementById("toast"); let toastT = 0;
+function toast(msg, ms = 1900) {
+  toastEl.textContent = msg; toastEl.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove("show"), ms);
+}
+function hideToast() { clearTimeout(toastT); toastEl.classList.remove("show"); }
+document.querySelectorAll(".sb").forEach(b => {
+  if (b.dataset.fx === "heart" && !b.classList.contains("heart-w")) for (let i = 0; i < 6; i++) { const d = document.createElement("i"); d.className = "burst"; d.style.setProperty("--a", (i * 60) + "deg"); b.appendChild(d); }
+  let t = 0;
+  b.addEventListener("pointerdown", () => { clearTimeout(t); b.classList.add("rip"); });
+  const up = () => { t = setTimeout(() => b.classList.remove("rip"), 140); };
+  b.addEventListener("pointerup", up); b.addEventListener("pointerleave", up); b.addEventListener("pointercancel", up);
+  b.addEventListener("click", e => {
+    e.stopPropagation();
+    if (busy) return;
+    const fx = b.dataset.fx;
+    if (fx === "heart" || fx === "toggle") {
+      const on = b.classList.toggle("on");
+      b.classList.remove("pop");
+      if (on && fx === "heart" && !b.classList.contains("heart-w")) { void b.offsetWidth; b.classList.add("pop"); }
+      const m = on ? b.dataset.on : b.dataset.off; if (m) toast(m);
+    } else if (fx === "zoom") {
+      const z = cam.classList.toggle("zoom2"); toast(z ? "Zoomed in to 2×" : "Back to 1×", 1200);
+    } else if (fx === "flip") {
+      const vf = document.getElementById("vf"); vf.classList.remove("flip"); void vf.offsetWidth; vf.classList.add("flip");
+    } else if (fx === "top") {
+      toast("You’re at the top", 1100);
+    } else if (b.dataset.msg) toast(b.dataset.msg);
+  });
+});
+// 화면이 바뀌면 토스트는 바로 사라짐
+["push", "pop"].forEach(n => { const f = window[n]; if (typeof f === "function") window[n] = function () { hideToast(); return f.apply(this, arguments); }; });
+
+// 채팅 입력: 직접 써서 보내면 내 말풍선이 아래에 붙음
+const chIn = document.getElementById("chIn"), chSend = document.getElementById("chSend");
+function syncTyping() { chat.classList.toggle("typing", chIn.value.length > 0); }
+chIn.addEventListener("input", syncTyping);
+function clearMine() { chThread.querySelectorAll(".mine").forEach(m => m.remove()); chIn.value = ""; syncTyping(); }
+function contentBottom() {
+  const mine = chThread.querySelectorAll(".mine"); if (mine.length) { const m = mine[mine.length - 1]; return m.offsetTop + m.offsetHeight; }
+  return threadEnd();
+}
+function sendMine() {
+  const v = chIn.value.trim(); if (!v) { chIn.focus(); return; }
+  const gap = chThread.querySelector(".mine") ? 6 : 16, top = contentBottom() + gap;
+  const m = document.createElement("div"); m.className = "mine"; m.textContent = v; m.style.top = top + "px";
+  chThread.appendChild(m);
+  chThread.style.height = (top + m.offsetHeight + 24) + "px";
+  chIn.value = ""; syncTyping();
+  requestAnimationFrame(() => { m.classList.add("show"); chMsgs.scrollTo({ top: chMsgs.scrollHeight, behavior: "smooth" }); });
+}
+chIn.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); sendMine(); } });
+chSend.addEventListener("pointerdown", e => { e.preventDefault(); chSend.classList.add("pressed"); });
+chSend.addEventListener("pointerup", () => setTimeout(() => chSend.classList.remove("pressed"), 120));
+chSend.addEventListener("pointerleave", () => chSend.classList.remove("pressed"));
+chSend.addEventListener("click", sendMine);
+
+document.querySelectorAll(".moment-hot").forEach(el => el.addEventListener("click", () => {
+  if (busy || stack.length > 1 || tab !== "friends" || phone.classList.contains("tab-freq")) return;
+  openStory(el.dataset.moment);
+}));
+
+/* ── Lucky Moments (친구 스토리) ─────────────
+   기운 버튼을 누르면 사진 위에 스티커가 '쿵' 찍히고 내 이름표가 붙음 (끌어서 원하는 곳에 놓아도 됨).
+   메시지 칸을 누르면 사진이 작아지며 올라가고 키보드가 올라옴. 옆으로 밀면 다음 친구 스토리. */
+const ST_ART = {   // 4배 픽셀 그림 → 화면에서는 1/4 크기, 채움색은 시안처럼 그라디언트
+  fire: { src: "__img_lm_st_fire__", w: 57, h: 66 }, water: { src: "__img_lm_st_water__", w: 39.5, h: 39.5 },
+  diamond: { src: "__img_lm_st_diamond__", w: 48.5, h: 41.75 }, leaf: { src: "__img_lm_st_leaf__", w: 35, h: 48.25 },
+  sprout: { src: "__img_lm_st_sprout__", w: 43.75, h: 30.75 } };
+const ST_BTNS = [
+  { type: "fire", label: "Fire energy", cx: 31, cy: 715, size: 72, k: .66 }, { type: "water", label: "Water energy", cx: 108.8, cy: 678.5, size: 81.6, k: 1 },
+  { type: "diamond", label: "Metal energy", cx: 200.5, cy: 667.2, size: 88, k: 1 }, { type: "leaf", label: "Wood energy", cx: 293.8, cy: 678.9, size: 81.6, k: 1 },
+  { type: "sprout", label: "Earth energy", cx: 371, cy: 715.2, size: 72, k: 1 } ];
+const ST_ME = "Me";
+const MOMENTS = [
+  { id: "unahynn", name: "Unahynn", photo: "__img_lm_m_unahynn__", av: "__img_lm_av_unahynn__", crop: [-43, 0, 75, 42], typed: "today’s pic is such a vibe lol take the energy!!",
+    stk: [["water", "Sumin", 95, 278], ["sprout", "Minhee", 270, 148], ["diamond", "SSU", 255, 323]] },
+  { id: "sumin", name: "Sumin", photo: "__img_lm_m_sumin__", av: "__img_lm_av_sumin__", crop: [-12.8, -8, 56, 56], cap: "finally exam D-DAY,,", pos: "50% 60%", typed: "Fire luck for exam day!! lol",
+    stk: [["fire", "MINJU", 295, 150], ["gem-pair", "Kwon", 63.5, 252], ["leaf-pair", "Minhee", 261.3, 334]] },
+  { id: "minhee", name: "Minhee", photo: "__img_lm_m_minhee__", av: "__img_lm_av_minhee__", cap: "ugh 9am class on a Monday T_T", typed: "sending Water energy, just survive today T_T",
+    stk: [["fire", "Sumin", 280, 168], ["leaf-pair", "Kwon", 90, 278], ["water", "SSU", 250, 333]] },
+  { id: "ssu", name: "SSU", photo: "__img_lm_m_ssu__", av: "__img_lm_av_ssu__", crop: [-1, -3.1, 34.3, 36], typed: "where is this?? take me with u lol",
+    stk: [["leaf", "Minhee", 95, 153], ["fire", "MINJU", 270, 268], ["gem-pair", "Kwon", 120, 338]] },
+  { id: "kwon", name: "Kwon", photo: "__img_lm_m_kwon__", av: "__img_lm_av_kwon__", crop: [-7.6, 0, 47, 32.2], typed: "#1 luck today, soak it up!!",
+    stk: [["gem-pair", "Sumin", 115, 168], ["sprout", "SSU", 265, 278], ["water", "Minhee", 95, 338]] },
+];
+const story = document.getElementById("story"), stPhoto = document.getElementById("stPhoto"), stStk = document.getElementById("stStk");
+const stIn = document.getElementById("stIn"), stMine = {};   // 내가 붙인 스티커는 친구별로 기억
+let stIdx = 1, stTypeT = 0;
+const artH = t => t === "gem-pair" ? 52 : t === "leaf-pair" ? 42.5 : ST_ART[t].h;
+function artHTML(t) {
+  const L = "__img_lm_st_leaf_small_a__", L2 = "__img_lm_st_leaf_small_b__", GA = "__img_lm_st_gem_a__", GB = "__img_lm_st_gem_b__";
+  if (t === "gem-pair") return `<span class="stk-art" style="width:73px;height:52px"><img src="${GA}" style="left:0;top:0;width:54.5px;height:49.75px" alt=""><img src="${GB}" style="left:29px;top:5px;width:44px;height:41.5px" alt=""></span>`;
+  if (t === "leaf-pair") return `<span class="stk-art" style="width:45px;height:42.5px"><img src="${L}" style="left:16.1px;top:3.9px;width:28.75px;height:38.5px" alt=""><img src="${L2}" style="left:0;top:0;width:24.25px;height:31.25px" alt=""></span>`;
+  const a = ST_ART[t]; return `<span class="stk-art" style="width:${a.w}px;height:${a.h}px"><img src="${a.src}" style="left:0;top:0;width:100%;height:100%" alt=""></span>`;
+}
+function stickerEl(t, from, x, y, label, delay) {
+  const d = document.createElement("div"); d.className = "stk stamp"; d.style.left = x + "px"; d.style.top = y + "px";
+  d.style.setProperty("--lo", (artH(t) / 2 + 8) + "px"); d.style.setProperty("--dl", delay + "ms");
+  d.innerHTML = artHTML(t) + (label ? `<span class="stk-label">${from}</span>` : ""); return d;
+}
+function renderStory(dir) {
+  const m = MOMENTS[stIdx];
+  const img = document.getElementById("stImg"); img.src = m.photo; img.style.objectPosition = m.pos || "50% 50%";   // 수민: 시안과 같은 부분이 보이게
+  document.getElementById("stCap").textContent = m.cap || "";
+  const av = document.getElementById("stAv"), c = m.crop, k = 35 / 32;
+  av.src = m.av; av.style.cssText = c ? `inset:auto;left:${c[0] * k}px;top:${c[1] * k}px;width:${c[2] * k}px;height:${c[3] * k}px;object-fit:fill` : "";
+  document.getElementById("stName").textContent = m.name;
+  stStk.innerHTML = "";
+  const all = m.stk.map(s => ({ t: s[0], from: s[1], x: s[2], y: s[3] })).concat(stMine[m.id] || []);
+  const lastOf = {}; all.forEach((s, i) => lastOf[s.from] = i);   // 이름표는 사람마다 마지막 스티커에만
+  all.forEach((s, i) => stStk.appendChild(stickerEl(s.t, s.from, s.x, s.y, lastOf[s.from] === i, 250 + i * 380)));
+  story.classList.remove("slide-l", "slide-r"); if (dir) { void story.offsetWidth; story.classList.add(dir > 0 ? "slide-l" : "slide-r"); }
+}
+function openStory(id) { stIdx = Math.max(0, MOMENTS.findIndex(m => m.id === id)); stopTyping(true); renderStory(0); push("story"); }
+function addMine(t, x, y, dropped) {
+  const m = MOMENTS[stIdx], list = stMine[m.id] = stMine[m.id] || [];
+  list.push({ t, from: ST_ME, x, y });
+  stStk.querySelectorAll(".stk").forEach(el => { if (el.querySelector(".stk-label") && el.querySelector(".stk-label").textContent === ST_ME) el.querySelector(".stk-label").remove(); });
+  const el = stickerEl(t, ST_ME, x, y, true, 0);
+  if (dropped) el.classList.replace("stamp", "drop");   // 끌어 놓은 건 들고 있던 모습에서 이어서 내려앉음
+  stStk.appendChild(el);
+  toast(`Sent ${ST_BTNS.find(b => b.type === t).label} to ${m.name}`, 1500);
+}
+const SPOTS = [[90, 120], [280, 110], [180, 230], [80, 360], [290, 380], [200, 330], [120, 190], [250, 210]];
+function freeSpot() {
+  const m = MOMENTS[stIdx], used = m.stk.map(s => [s[2], s[3]]).concat((stMine[m.id] || []).map(s => [s.x, s.y]));
+  let best = SPOTS[0], bd = -1;
+  SPOTS.forEach(p => { const d = Math.min(...used.map(u => Math.hypot(u[0] - p[0], u[1] - p[1])), 999); if (d > bd) { bd = d; best = p; } });
+  return [best[0] + (Math.random() * 16 - 8), best[1] + (Math.random() * 16 - 8)];
+}
+// 기운 버튼: 탭 → 빈 자리에 찍힘 / 끌어서 사진 위에 놓기
+const stBtns = document.getElementById("stBtns");
+ST_BTNS.forEach(b => {
+  const el = document.createElement("button"); el.type = "button"; el.className = "st-btn"; el.setAttribute("aria-label", "Send " + b.label);
+  el.style.cssText = `left:${b.cx - b.size / 2}px;top:${b.cy - b.size / 2}px;width:${b.size}px;height:${b.size}px`;
+  const a = ST_ART[b.type]; el.innerHTML = `<img src="${a.src}" alt="" style="width:${a.w * b.k}px;height:${a.h * b.k}px">`;
+  stBtns.appendChild(el);
+  let start = null, ghost = null;
+  const toStory = e => { const r = story.getBoundingClientRect(), k = r.width / 402; return [(e.clientX - r.left) / k, (e.clientY - r.top) / k]; };
+  el.addEventListener("pointerdown", e => { e.preventDefault(); el.setPointerCapture(e.pointerId); start = toStory(e); });
+  el.addEventListener("pointermove", e => {
+    if (!start) return; const p = toStory(e);
+    if (!ghost && Math.hypot(p[0] - start[0], p[1] - start[1]) > 8) { ghost = stickerEl(b.type, "", 0, 0, false, 0); ghost.classList.remove("stamp"); ghost.classList.add("ghost"); story.appendChild(ghost); }
+    if (ghost) { ghost.style.left = p[0] + "px"; ghost.style.top = p[1] + "px"; }
+  });
+  const end = e => {
+    if (!start) return; const p = toStory(e); start = null;
+    if (ghost) {
+      ghost.remove(); ghost = null;
+      const x = p[0] - 20, y = p[1] - 125;   // 사진 안 좌표
+      if (x > 0 && x < 362 && y > 0 && y < 424 && !story.classList.contains("typing")) addMine(b.type, Math.min(342, Math.max(20, x)), Math.min(404, Math.max(20, y)), true);
+      return;
+    }
+    if (e.type === "pointerup" && !story.classList.contains("typing")) { const [x, y] = freeSpot(); addMine(b.type, x, y); }
+  };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", () => { start = null; if (ghost) { ghost.remove(); ghost = null; } });
+});
+// 메시지: 칸을 누르면 입력 화면, 데모 문장이 자동으로 써짐 (직접 쳐도 됨)
+function startTyping() {
+  if (story.classList.contains("typing")) return;
+  story.classList.add("typing"); stIn.value = "";
+  const text = MOMENTS[stIdx].typed; let i = 0; clearInterval(stTypeT);
+  stTypeT = setInterval(() => { if (i >= text.length) { clearInterval(stTypeT); return; } stIn.value = text.slice(0, ++i); stIn.scrollLeft = stIn.scrollWidth; }, 75);   // 긴 문장도 끝(방금 친 글자)이 보이게
+  setTimeout(() => { try { stIn.focus({ preventScroll: true }); } catch (e) {} }, 50);
+}
+function stopTyping(instant) { clearInterval(stTypeT); story.classList.remove("typing"); stIn.value = ""; try { stIn.blur(); } catch (e) {} }
+stIn.addEventListener("pointerdown", e => { e.preventDefault(); startTyping(); });
+stIn.addEventListener("focus", startTyping);
+stIn.addEventListener("input", () => clearInterval(stTypeT));
+stIn.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("stSend").click(); });
+document.getElementById("stSend").addEventListener("pointerdown", e => e.preventDefault());
+document.getElementById("stSend").addEventListener("click", () => {
+  if (!story.classList.contains("typing")) { startTyping(); return; }
+  if (!stIn.value.trim()) return;
+  stopTyping(); toast(`Message sent to ${MOMENTS[stIdx].name}`, 1600);
+});
+document.getElementById("stBack").addEventListener("click", () => { if (story.classList.contains("typing")) { stopTyping(); return; } if (!busy) pop(); });
+stPhoto.addEventListener("click", () => { if (story.classList.contains("typing")) stopTyping(); });
+// 옆으로 밀면 다음·이전 친구
+(() => {
+  let p0 = null;
+  story.addEventListener("pointerdown", e => { if (e.target.closest(".st-btn, #stMsg, #stBack") || story.classList.contains("typing")) return; p0 = [e.clientX, e.clientY]; });
+  story.addEventListener("pointerup", e => {
+    if (!p0) return; const k = story.getBoundingClientRect().width / 402, dx = (e.clientX - p0[0]) / k, dy = (e.clientY - p0[1]) / k; p0 = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    const n = stIdx + (dx < 0 ? 1 : -1); if (n < 0 || n >= MOMENTS.length) return;
+    stIdx = n; renderStory(dx < 0 ? 1 : -1);
+  });
+  story.addEventListener("pointercancel", () => { p0 = null; });
+})();
+addEventListener("message", e => {
+  if (e.data === "chiring:home") closeFreq("home");
+  if (e.data === "chiring:friends") closeFreq("friends");
+});
+function boot() {
+  const h = location.hash.slice(1);
+  if (h === "home" || h === "friends") {   // 다른 화면에서 돌아올 때는 오늘의 운세를 건너뜀
+    fortuneSeen = true; start(false);
+    if (h === "friends") setTab("friends", true);
+  } else if (h === "keyring") {          // 공유용 링크: 주소 끝에 #keyring 을 붙이면 바로 키링 화면
+    fortuneSeen = true; start(false);
+    setTimeout(() => { busy = false; push("evening"); window.evStart(); }, 60);
+  } else if (h === "fortune") start(false);   // 온보딩 없이 오늘의 운세부터
+  else {                                      // 기본: 팀원 앱의 온보딩부터 (팀원 앱 파일이 없는 곳에서는 오늘의 운세부터)
+    startOnboarding();                        // 바로 온보딩 (첫 화면 결정은 위에서 이미 끝남)
+    const fallback = () => { onboarding = false; phone.classList.remove("tab-freq", "onb", "onb-wait"); start(false); };   // 팀원 앱 파일이 없을 때만 오늘의 운세부터
+    fetch("chiring/index.html", { method: "HEAD", cache: "no-store" }).then(r => { if (!r.ok) fallback(); }).catch(fallback);
+  }
+}
+if (window.BOOT_ONB || document.readyState === "complete") boot(); else addEventListener("load", boot, { once: true });   // 온보딩은 바로, 오늘의 운세는 이미지가 다 준비된 뒤
+</script>

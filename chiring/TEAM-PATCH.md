@@ -1,0 +1,53 @@
+# 팀 프로토타입에서 덧붙인 것 (원본 chiring 코드에 옮겨 주세요)
+
+`index.html`은 빌드 결과물이라, 원본에서 다시 빌드하면 아래 두 가지가 사라져요. 원본(unahynn/chiring)에 옮겨 두면 다시 빌드해도 유지돼요.
+
+## 1. 기운 선물 완료 → 참 등장 효과 (1110 개선)
+시나리오 1 '오늘 행운 담기_참' 등장과 같은 결로 바꿨어요: 아래 빛이 먼저 차오름 → 참이 0.8초에 걸쳐 나타나며 살짝 위(-16px)에서 내려와 자리 잡고(.97→1) → 입체로 살짝 기울었다 잦아듦(rotateY) → 빛줄기가 한 번 훑고 반짝임 → 둥실.
+이전 버전은 참을 위 꼭짓점 기준으로 매달린 듯 흔들어서, 고리가 없는 별 참에서 어색했어요.
+
+`index.html`의 `<style id="team-charm-fx">`와 `<script id="team-charm-js">`를 그대로 옮기면 돼요.
+- CSS → `src/screens/Frequency.css` 맨 아래
+- 스크립트(빛줄기·반짝임 요소를 참에 붙임) → 원본에서는 `gifted__charm` JSX 안에 `tcf-sheen`(참 이미지를 mask-image로 지정)과 `tcf-spark` 요소를 직접 넣는 게 더 깔끔해요.
+
+## 1-1. 온보딩 '나의 캐해 리포트' 확인 버튼: 떠 있는 버튼
+`<style id="team-onb-fx">`: `.report__footer`를 `position:sticky; bottom:34px; margin-bottom:34px`, `.report__scroll` 아래 여백 0 → 카드가 버튼 뒤로 스크롤되고, 버튼 위치가 앞 화면 '나의 캐해 확인하기'와 같아요(위 784px · 아래에서 34px). `src/screens/Report.css`(또는 리포트 스타일 파일)에 옮겨 주세요.
+
+## 1-2. 주파수 선택 → 메세지 보기 서체
+위 CSS 맨 아래 `.replay-card__message`: 시안처럼 ZEN SERIF, 31px / 줄 간격 48px, 조금 굵게(-webkit-text-stroke). `src/screens/FrequencyReplay.css`의 `.replay-card__message`에 옮겨 주세요.
+
+## 1-3. 메세지 문구: 줄표 모양 (시안)
+시안의 `잠이나 자 ㅡㅡ`는 붙은 긴 줄표(`——`)가 아니라 한글 `ㅡ` 두 개예요. `src/` 메세지 데이터(`water-2`, Jiwon)의 `잠이나 자 ——`를 `잠이나 자 ㅡㅡ`로 바꿔 주세요. (`index.html`에는 직접 바꿔 두었어요)
+
+## 1-4. 아카이브 탭
+- **아카이브 임시 화면 높이:** `D` 컴포넌트(`아카이브 화면은 곧 만들 예정이에요`)가 `minHeight:700`이라, sticky 하단 내비가 화면 바닥(780px)이 아니라 내용 끝(606px)에 붙어 위로 떠 보였어요. → `minHeight:874, paddingBottom:94` (화면을 꽉 채우고 문구는 내비 위 가운데).
+- **팀 프로토타입에서 아카이브 열기:** 홈·친구방에서 아카이브를 누르면 `chiring:myluck` 신호를 보내요. `TeamApp.tsx`의 message 처리에 `chiring:myluck` → `setOnboarding(null)`, 단계 `home`, 탭 `myluck` 을 추가해 주세요. (홈·친구방·기운 충전 어디서 눌러도 같은 아카이브 화면)
+
+## 1-5. 나의 캐해 리포트 '주의 포인트' 상자 색 (1110 시안 수정)
+네 방향으로 뒤집어 붙인 SVG 그라디언트(가운데 진한 청록 + 모서리 연한 색)를 시안처럼 한 방향 그라디언트로 바꿨어요.
+리포트 상자 정의의 `caution`을 아래로 바꿔 주세요.
+- `bg`: `linear-gradient(206deg, #00888a 0%, #13a28d 25%, #29bf91 50%, #41da95 75%, #58f499 100%)`
+- `inset`: `inset 0 0 1px rgba(255, 255, 255, 0.3), inset 0 0 34px rgba(222, 250, 198, 0.78)`
+
+## 1-6. 기운 선물·충전: 카드 위에도 문지른 기운 빛 (1111)
+문지른 자리의 기운 빛(`wish-glow` 캔버스)이 카드 뒤(z-index 0)에 깔려 카드 밖에서만 보였어요. 카드 위를 문질러도 빛이 보이도록 카드보다 위로 올렸어요.
+- `src/screens/Frequency.css`: `.gifted .wish-glow{z-index:2}` (카드 `.gifted__card`는 z-index 1)
+- `index.html`의 `<style id="team-rub-fx">`에 있어요.
+
+## 1-7. 휴대폰에서는 '기운 생성중' 빛을 WebGPU 대신 CSS로 (1112)
+'주파수 만들기'를 누른 뒤 '기운 생성중' 화면의 빛(`loading__rays`)은 WebGPU 셰이더예요. iOS Safari 26부터 WebGPU가 켜지면서, 휴대폰에서 이 화면이 그래픽 메모리를 넘겨 앱 화면 전체가 빈 회색으로 지워졌어요.
+휴대폰(터치 + 화면 짧은 변 500px 이하, 소리의 `LITE`와 같은 기준)에서는 WebGPU 장치를 요청하지 않게 해서, 앱에 이미 있는 `loading__fallback`(CSS 그라디언트 빛)이 나오도록 했어요. 데스크톱은 그대로 셰이더.
+- 원본: WebGPU 장치를 얻는 함수(`navigator.gpu` → `requestAdapter` → `requestDevice`) 맨 앞에 위 휴대폰 조건이면 `throw`를 넣어 주세요.
+
+## 2. 기운 주파수 소리 (magenta.js)
+- `team-sound.js` + `vendor/magentamusic-1.23.1.js` (@magenta/music 1.23.1, Apache-2.0)
+- magenta.js MusicVAE 두 모델이 상황마다 새로 생성: 선율(`mel_4bar_small_q2`, 4마디마다) · 드럼(`drums_2bar_lokl_small`, 2마디마다)
+- 기운별 바탕 주파수(tone.ts BASE_HZ와 같은 높이, 양쪽 귀 4Hz 차이) + 코드 패드 + 서브 베이스, 킥마다 패드가 눌렸다 올라오는 사이드체인
+- 상황별로 다르게 생성:
+  - 문지르기 안내: 80bpm, 잔잔한 패드 + 성긴 선율, 드럼 없음, 가장 작게(-30dB)
+  - 문지르는 중: 96bpm, 문지르는 속도만큼 소리가 커지고(-30 → -7dB) 밝아짐(필터 380Hz → 9kHz), 빨리 문지를수록 하이햇 → 킥 → 탐 → 클랩 → 오픈햇 순으로 드럼이 들어옴
+  - 참 등장 후: 104bpm 퓨처베이스풍, 4박 킥·2·4박 클랩, 바탕 주파수 5도 위, 한 옥타브 밝은 선율
+  - 다시 듣기 재생: 88bpm 로파이 하우스, 스윙 하이햇·오픈햇 (tone.ts 바탕음 위에 얹음)
+- **휴대폰에서는 AI 모델을 쓰지 않아요 (`LITE`).** MusicVAE는 TensorFlow WebGL(그래픽 메모리)을 쓰는데, 이미지가 많은 화면 위에서 iOS(특히 카카오톡 같은 앱 안 브라우저)가 그래픽 메모리 부족으로 화면을 통째로 지워 버리는 문제가 있었어요. 휴대폰에서는 같은 규칙의 생성 패턴(`fallbackMelody`·`FALLBACK_DRUMS`)으로 연주해요. 데스크톱은 그대로 모델 사용.
+- 원본에서는 `team.html`(빌드 진입 파일)의 `</body>` 앞에 `<script src="team-sound.js"></script>`를 넣고, 두 파일을 `public/`에 두면 돼요.
+- **아카이브 임시 화면 문구:** `D` 컴포넌트에서 label이 `아카이브`일 때 문구를 `라이팅 아카이브 기능은 곧 열릴 예정이에요.`로 바꿨어요. (다른 탭의 임시 화면 문구는 그대로)
