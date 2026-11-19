@@ -169,7 +169,7 @@ R = [
     ('label: "흙의 기운"', 'label: "Earth energy"'),
     ('const ST_ME = "나";', 'const ST_ME = "Me";'),
     ('typed: "오늘 사진 분위기 미쳤다 ㅋㅋ 기운 받아 가 !!"', 'typed: "today’s pic is such a vibe lol take the energy!!"'),
-    ('cap: "드디어 시험 D-DAY,,"', 'cap: "finally exam D-DAY,,"'),
+    ('cap: "드디어 시험 D-DAY,,"', 'cap: "exam day is finally here.."'),
     ('typed: "불 기운이 시험날 좋대서 붙여둠 !! 야르 ㅋㅋ"', 'typed: "Fire luck for exam day!! lol"'),
     ('cap: "하ㅏ 월요일 1교시 에바야 ㅠ"', 'cap: "ugh 9am class on a Monday T_T"'),
     ('typed: "물 기운 보내줄게 오늘만 버티자 ㅠㅠ"', 'typed: "sending Water energy, just survive today T_T"'),
