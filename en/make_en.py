@@ -81,6 +81,7 @@ er('n_charm_btn'); ov('n_charm_btn', 'Charm', (0, 778, 402, 850), (14, 778))
 # ── 인증 결과 ──
 ov('n_res_title', 'Result', (0, 130, 402, 230), (14, 135), drop=True, overrides={'Your Water energy\nis fully charged': {'w': 340}})
 ov('n_res_sub', 'Result', (0, 505, 402, 580), (60, 505), drop=True)
+s = s.replace('font-size:24px;letter-spacing:-1.92px', 'font-size:24px;letter-spacing:-0.48px', 1)   # 영문은 -8%가 너무 붙어 보여 -2%로
 er('n_res_tiles'); ov('n_res_tiles', 'Result', (14, 620, 388, 745), (14, 620))
 er('n_res_btn'); ov('n_res_btn', 'Result', (0, 778, 402, 850), (14, 778))
 
