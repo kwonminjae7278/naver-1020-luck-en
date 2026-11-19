@@ -762,7 +762,7 @@
 </style>
 <div class="phone" id="phone">
 <script>/* 첫 화면: 기본 주소(온보딩부터)면 화면을 그리기 전에 바로 온보딩 상태로 둠 → 오늘의 운세(기운 도착) 화면이 잠깐 비쳤다 사라지지 않음 */
-(function () { var h = location.hash.slice(1); if (["home", "friends", "keyring", "fortune"].indexOf(h) < 0) { window.BOOT_ONB = true; document.getElementById("phone").classList.add("tab-freq", "onb", "onb-wait"); } })();</script>
+(function () { var h = location.hash.slice(1); if (["home", "friends", "keyring", "fortune", "item", "place", "music", "story", "chat", "rank", "energy", "gift"].indexOf(h) < 0) { window.BOOT_ONB = true; document.getElementById("phone").classList.add("tab-freq", "onb", "onb-wait"); } })();</script>
  <div class="scaler" id="scaler">
   <div id="homeVeil"></div>
 
@@ -2426,6 +2426,22 @@ function boot() {
   } else if (h === "keyring") {          // 공유용 링크: 주소 끝에 #keyring 을 붙이면 바로 키링 화면
     fortuneSeen = true; start(false);
     setTimeout(() => { busy = false; push("evening"); window.evStart(); }, 60);
+  } else if (["item", "place", "music"].includes(h)) {   // 행운 아이템·장소·플리 상세
+    fortuneSeen = true; start(false);
+    setTimeout(() => { busy = false; push(h); }, 60);
+  } else if (["story", "chat", "rank"].includes(h)) {    // 친구방: 모먼트(수민) · 행운 공구방 · 운세 순위 비교
+    fortuneSeen = true; start(false); setTab("friends", true);
+    setTimeout(() => {
+      busy = false;
+      if (h === "story") openStory("sumin");
+      else { openChat(); if (h === "rank") setTimeout(() => { busy = false; document.getElementById("chChip").click(); }, 700); }
+    }, 60);
+  } else if (h === "energy" || h === "gift") {          // 기운 충전(주파수) · 친구에게 주파수 선물하기
+    fortuneSeen = true; start(false); openFreq();
+    if (h === "gift") { const t0 = Date.now(), iv = setInterval(() => {
+      let c; try { c = freqFrame.contentDocument.querySelectorAll(".who__card")[1]; } catch (e) {}
+      if (c) { clearInterval(iv); setTimeout(() => c.click(), 250); } else if (Date.now() - t0 > 15000) clearInterval(iv);
+    }, 150); }
   } else if (h === "fortune") start(false);   // 온보딩 없이 오늘의 운세부터
   else {                                      // 기본: 팀원 앱의 온보딩부터 (팀원 앱 파일이 없는 곳에서는 오늘의 운세부터)
     startOnboarding();                        // 바로 온보딩 (첫 화면 결정은 위에서 이미 끝남)

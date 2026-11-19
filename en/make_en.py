@@ -3,6 +3,7 @@
 #  2) en/src_base.html(문구·글꼴만 영어로 바꾼 상태) + 글자 층 → src.html
 # 사용: python3 en/make_en.py && python3 build.py
 import os, re, sys, shutil
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 from erase import erase, ocr, HANG
 import overlay as OV
@@ -229,6 +230,8 @@ for k, ch in zip(keys[:26], letters):
 sp = keys[26]; kb += M.T('space', (sp[0] + sp[2]) / 2, (sp[1] + sp[3]) / 2, 16, wt=400, ls_pct=0, color='#fff')
 s = OV.insert(s, 'lm_kbd', kb)
 
+import routes
+s = routes.apply(s)
 s = s.replace('</style>', OV.CSS + M.CSS + '</style>', 1)
 open(f'{D}/src.html', 'w', encoding='utf-8').write(s)
 print('ok')
